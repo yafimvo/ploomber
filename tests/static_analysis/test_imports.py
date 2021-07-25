@@ -105,6 +105,26 @@ from module import a, b
         ],
         [
             """
+# module
+import another_module as some_alias
+
+some_alias.a
+""", {
+                'another_module.a': 'def a():\n    pass'
+            }
+        ],
+        [
+            """
+# submodule
+import package.sub as some_alias
+
+some_alias.x()
+""", {
+                'package.sub.x': 'def x():\n    pass'
+            }
+        ],
+        [
+            """
 # built-in module
 import math
 # module
@@ -141,6 +161,8 @@ sub_other.a()
         'from-import-empty',
         #  FIXME: look for references in the code
         'from-import-multiple',
+        'import-as',
+        'submodule-import-as',
         'complete',
     ])
 def test_extract_from_script(sample_files, script, expected):
@@ -150,11 +172,6 @@ def test_extract_from_script(sample_files, script, expected):
     # it still initializes the spec but origin is None
     # TODO: try with relative import
     # TODO: try with nested imports (i.e. inside a function)
-    # TODO: import my_module as some_module
-    # TODO: import my.module as some_module
-
-    # TODO: ensure it only reports back accessed attribtues
-    # try import module but also import module.sub_module
 
     # TODO: try accessing an attribute that's imported in __init__
     # hence the source isn't there...

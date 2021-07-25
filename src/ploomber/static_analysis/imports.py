@@ -1,27 +1,3 @@
-"""
-When tracking module imports (i.e., import my_module) we may want to only
-track changes to attributes or submodules used. e.g., if the task's code has:
-
-import my_module
-
-my_module.my_fn
-
-
-We track my_fn but no other attributes such as my_module.another_fn
-
-However, in such case, we also need to resolve references inside my_fn, for
-example it may be using another_module.one_more_fn, so we need to track that
-as well.
-
-Alternatively, we may define different tracking behavior depending on the
-import type
-
-import my_module # track everything
-from my_module import my_fn # track my_fn
-
-However, if we do so, imported modules used by my_fn won't be tracked.
-
-"""
 from itertools import chain
 import importlib
 from pathlib import Path
@@ -109,6 +85,8 @@ def extract_from_script(path_to_script):
 
     specs = {}
 
+    
+
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
     for import_ in m.iter_imports():
@@ -123,7 +101,12 @@ def extract_from_script(path_to_script):
             # (e.g.,a.b.c)
             # if import_from: from a import b, look for attributes of b
             # (e.g., b.c)
-            if import_.type == 'import_name':
+            # from ipdb import set_trace; set_trace()
+
+            # use the keyword next to import if doing (import X) and we are
+            # not using the as keyword
+            if (import_.type == 'import_name'
+            and 'dotted_as_name' not in [c.type for c in import_.children]):
                 name_defined = name
             else:
                 name_defined = name_defined.value
