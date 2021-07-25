@@ -168,9 +168,14 @@ sub_other.a()
 def test_extract_from_script(sample_files, script, expected):
     Path('script.py').write_text(script)
 
+    # TODO: add a nested attribute
+    # e.g., import module
+    # retrieve source code module.sub_module.attribute
+
+    # TODO: finding imports rescursively
+
     # TODO: try with sub that does not have an __init__.py
     # it still initializes the spec but origin is None
-    # TODO: try with relative import
     # TODO: try with nested imports (i.e. inside a function)
 
     # TODO: try accessing an attribute that's imported in __init__
@@ -181,6 +186,15 @@ def test_extract_from_script(sample_files, script, expected):
     specs = imports.extract_from_script('script.py')
 
     assert specs == expected
+
+
+# test relative imports
+# from . import y
+# from .x import y
+# from ..z import y
+# NOTE: we don't need any verification logic. just find the package from
+# the first argument, then get the parents and locate the symbol/module
+# if the relative import is invalid, the task wont run anyway
 
 
 def test_extract_attribute_access():
@@ -223,9 +237,41 @@ functions.b()
     assert imports.extract_attribute_access(code, 'functions') == ['a', 'b']
 
 
-# import mod.sub
-def test_extract_nested_attribute_access():
-    code = """
+@pytest.mark.parametrize('source, expected', [
+    [
+        """
+mod.sub.some_fn(1)
+""",
+        ['some_fn'],
+    ],
+    [
+        """
+result = mod.sub.some_fn(1)
+""",
+        ['some_fn'],
+    ],
+    [
+        """
+def do_something(x):
+    return mod.sub.another_fn(x) + x
+""",
+        ['another_fn'],
+    ],
+    [
+        """
+mod.sub.some_dict[1]
+""",
+        ['some_dict'],
+    ],
+    [
+        """
+mod.sub.nested.attribute
+""",
+        ['nested.attribute'],
+    ],
+    [
+        """
+import mod.sub
 
 result = mod.sub.some_fn(1)
 
@@ -236,10 +282,22 @@ mod = something_else()
 mod.sub['something']
 
 mod.sub.some_dict[1]
-"""
 
-    assert imports.extract_attribute_access(
-        code, 'mod.sub') == ['some_fn', 'another_fn', 'some_dict']
+mod.sub.nested.attribute
+""",
+        ['some_fn', 'another_fn', 'some_dict', 'nested.attribute'],
+    ],
+],
+                         ids=[
+                             'function-call',
+                             'function-call-assignment',
+                             'function-call-nested',
+                             'getitem',
+                             'nested-attribute',
+                             'complete',
+                         ])
+def test_extract_nested_attribute_access(source, expected):
+    assert imports.extract_attribute_access(source, 'mod.sub') == expected
 
 
 @pytest.mark.parametrize('symbol, source', [

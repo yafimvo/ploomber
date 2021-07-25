@@ -8,6 +8,10 @@ from ploomber.codediffer import _delete_python_comments
 
 
 def parent_or_child(path_to_script, origin):
+    """
+    Returns true if there is a parent or child relationship between the
+    two arguments
+    """
     try:
         origin.relative_to(path_to_script)
     except ValueError:
@@ -28,26 +32,59 @@ def parent_or_child(path_to_script, origin):
     return parent
 
 
-def get_origin(name):
+def get_origin(dotted_path):
+    """
+    Gets the spec origina for the given dotted path
+    """
     try:
-        return Path(importlib.util.find_spec(name).origin), True
+        return Path(importlib.util.find_spec(dotted_path).origin), True
     except ModuleNotFoundError:
         pass
 
     # name could be an attribute, not a module. so we try to locate
     # the module instead
-    name_parent = '.'.join(name.split('.')[:-1])
+    name_parent = '.'.join(dotted_path.split('.')[:-1])
 
     # NOTE: find_spec is going to import the package
     return Path(importlib.util.find_spec(name_parent).origin), False
 
 
-def get_source_from_import(name, source, name_defined, base):
+def get_source_from_import(dotted_path, source, name_defined, base):
     """
+    Get source code for the given dotted path. Returns a dictionary with a
+    single key-value pair if the dotted path is an module attribute, if it's
+    a module, it returns one key-value pair for each attribute accessed in the
+    source code.
+
+    Parameters
+    ----------
+    dotted_path : str
+        Dotted path with the module/attribute location. e.g., module.sub_module
+        or module.sub_module.attribute
+
+    source : str
+        The source code where the import statement used to generatet the dotted
+        path exists
+
+    name_defined : str
+        The name defined my the import statement. e.g.,
+        "import my_module.sub_module as some_name" imports sub_module but
+        defines it in the some_name variable. This is used to look for
+        references in the code and return the source for the requested
+        attributes
+
+    base : str
+        Source locationn (source argument), if the imported source code is not
+        a child or a parent of the source, it is ignored
     """
+    # TODO: nested references. e.g.,
+    # import module
+    # module.sub_module.attribute(1)
+    # this wont return the source code for attribute!
+
     # if name is a symbol, return a dict with the source, if it's a module
     # return the sources for the attribtues used in source
-    origin, is_module = get_origin(name)
+    origin, is_module = get_origin(dotted_path)
 
     # do not obtain sources for modules that arent in the project
     if not parent_or_child(base, origin):
@@ -59,20 +96,23 @@ def get_source_from_import(name, source, name_defined, base):
 
         # TODO: only read origin once
         return {
-            f'{name}.{attr}': extract_symbol(origin.read_text(), attr)
+            f'{dotted_path}.{attr}': extract_symbol(origin.read_text(), attr)
             for attr in accessed_attributes
         }
 
     # is a single symbol
     else:
-        symbol = name.split('.')[-1]
+        symbol = dotted_path.split('.')[-1]
         # TODO: only read once
         source = extract_symbol(origin.read_text(), symbol)
-        return {name: source}
+        return {dotted_path: source}
 
 
 def extract_from_script(path_to_script):
-    """Returns a mapping with name -> source for each import on the script
+    """
+    Extract the source code for all imports in a script. Keys are dotted
+    paths to the imported attributes while keys contain the source code. If
+    a module is imported, only attributes used in the script are returned.
 
     Notes
     -----
@@ -119,7 +159,21 @@ def extract_from_script(path_to_script):
     return specs
 
 
+# TODO: test with nested attributes and assignments
 def extract_attribute_access(code, name):
+    """
+    Extracts all attributes accessed with a given name. e.g., if name = 'obj',
+    then this procedure returns all strings with the 'obj.{something}' form,
+    this includes things like: obj.something, obj.something[1], obj.something(1)
+
+    Parameters
+    ----------
+    code : str
+        The code to analyze
+
+    name : str
+        The variable to check
+    """
     # delete comments otherwise the leaf.parent.get_code() will fail
     m = parso.parse(_delete_python_comments(code))
 
@@ -127,14 +181,20 @@ def extract_attribute_access(code, name):
 
     leaf = m.get_first_leaf()
 
+    # from ipdb import set_trace; set_trace()
+
 
     while leaf is not None:
         extracted_name = '.'.join(
             leaf.parent.get_code().strip().split('.')[:-1])
+        # extracted_name == name
+
+        full = leaf.parent.get_code().strip()
+        n_tokens = len(name.split('.'))
 
         # FIXME: does this only match once?
         # the newline leaf also has the dotted path as parent
-        if leaf.type != 'newline' and extracted_name == name:
+        if leaf.type not in {'newline', 'endmarker'} and full.startswith(name):
 
             children = leaf.parent.children
             children_code = [c.get_code() for c in children]
@@ -144,10 +204,12 @@ def extract_attribute_access(code, name):
             # last is the function call or getitem (e.g., a.b(), a.b[1])
             # case 2 - accessing property: {one}.{two}
             # if there is a dot in the last token, then it's case 2
-            idx = -1 if children_code[-1][0] == '.' else -2
+            # idx = -1 if children_code[-1][0] == '.' else -2
 
             # ignore first character (it is the dot)
-            last = children[idx].get_code().strip()[1:]
+            # last = children[idx].get_code().strip()[1:]
+
+            last = '.'.join([token.replace('.', '') for token in children_code[n_tokens:] if token[0] == '.'])
 
 
             # sibling = leaf.get_next_sibling()
@@ -167,7 +229,15 @@ def extract_attribute_access(code, name):
 
 
 def extract_symbol(code, name):
-    """
+    """Get source code for symbol with a given name
+
+    Parameters
+    ----------
+    code : str
+        Code to analyze
+
+    name : str
+        Symbol name
     """
     # NOTE: should we import and inspect live objects? for python callables
     # they should already been imported if the task executed but for scripts it
