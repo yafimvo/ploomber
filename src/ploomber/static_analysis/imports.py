@@ -97,6 +97,10 @@ def get_source_from_import(name, source, name_defined, base):
 
 def extract_from_script(path_to_script):
     """Returns a mapping with name -> source for each import on the script
+
+    Notes
+    -----
+    Star imports (from module import *) are ignored
     """
     base = Path(path_to_script).parent.resolve()
     source = Path(path_to_script).read_text()
@@ -113,6 +117,7 @@ def extract_from_script(path_to_script):
         for paths, name_defined in zip(import_.get_paths(),
                                        import_.get_defined_names()):
             name = '.'.join([name.value for name in paths])
+
 
             # if import_name: import a.b, look for attributes of a.b
             # (e.g.,a.b.c)

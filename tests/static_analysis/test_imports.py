@@ -41,6 +41,9 @@ def b():
     'script, expected',
     [
         ["""
+from math import *
+""", {}],
+        ["""
 # built-in module
 import math
 
@@ -128,6 +131,7 @@ sub_other.a()
         ],
     ],
     ids=[
+        'import-star',
         'built-in',
         'local-unused',
         'local',
@@ -142,11 +146,10 @@ sub_other.a()
 def test_extract_from_script(sample_files, script, expected):
     Path('script.py').write_text(script)
 
-    # TODO: try with an import *
     # TODO: try with sub that does not have an __init__.py
     # it still initializes the spec but origin is None
     # TODO: try with relative import
-    # TODO: try with nested imports
+    # TODO: try with nested imports (i.e. inside a function)
     # TODO: import my_module as some_module
     # TODO: import my.module as some_module
 
