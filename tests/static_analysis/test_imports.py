@@ -5,7 +5,8 @@ import pytest
 from ploomber.static_analysis import imports
 
 
-def test_extract_from_script(tmp_directory, tmp_imports):
+@pytest.fixture
+def sample_files(tmp_directory, tmp_imports):
     Path('package').mkdir()
     Path('package', '__init__.py').touch()
     Path('package', 'sub').mkdir()
@@ -35,7 +36,72 @@ def b():
     pass
 """)
 
-    Path('script.py').write_text("""
+
+@pytest.mark.parametrize(
+    'script, expected',
+    [
+        ["""
+# built-in module
+import math
+
+math.square(1)
+""", {}],
+        ["""
+# module
+import another_module
+""", {}],
+        [
+            """
+# module
+import another_module
+
+another_module.a
+""", {
+                'another_module.a': 'def a():\n    pass'
+            }
+        ],
+        [
+            """
+# submodule
+import package.sub
+
+package.sub.x()
+""", {
+                'package.sub.x': 'def x():\n    pass'
+            }
+        ],
+        ["""
+# submodule
+import package.sub
+""", {}],
+        [
+            """
+# from .. import {sub-module}
+from package import sub_other
+
+sub_other.a()
+""", {
+                'package.sub_other.a': 'def a():\n    pass'
+            }
+        ],
+        [
+            """
+# from .. import {sub-module}
+from package import sub_other
+
+""", {}
+        ],
+        [
+            """
+# from .. import attribute1, attrbute2
+from module import a, b
+""", {
+                'module.a': 'def a():\n    pass',
+                'module.b': 'def b():\n    pass'
+            }
+        ],
+        [
+            """
 # built-in module
 import math
 # module
@@ -47,12 +113,34 @@ from package import sub_other
 # from .. import {attribute}
 from module import a, b
 
-# TODO: try removing some of these
 another_module.a()
 another_module.b()
 package.sub.x()
 sub_other.a()
-""")
+""", {
+                'another_module.a': 'def a():\n    pass',
+                'another_module.b': 'def b():\n    pass',
+                'package.sub.x': 'def x():\n    pass',
+                'package.sub_other.a': 'def a():\n    pass',
+                'module.a': 'def a():\n    pass',
+                'module.b': 'def b():\n    pass'
+            }
+        ],
+    ],
+    ids=[
+        'built-in',
+        'local-unused',
+        'local',
+        'submodule',
+        'submodule-empty',
+        'from-import',
+        'from-import-empty',
+        #  FIXME: look for references in the code
+        'from-import-multiple',
+        'complete',
+    ])
+def test_extract_from_script(sample_files, script, expected):
+    Path('script.py').write_text(script)
 
     # TODO: try with an import *
     # TODO: try with sub that does not have an __init__.py
@@ -69,17 +157,7 @@ sub_other.a()
     # e.g. module.sub['a'], should we also look for changes there?
     specs = imports.extract_from_script('script.py')
 
-    assert set(specs) == {
-        'another_module.a',
-        'another_module.b',
-        'package.sub.x',
-        'package.sub_other.a',
-        'module.a',
-        'module.b',
-    }
-
-    assert specs['module.a'] == 'def a():\n    pass'
-    assert specs['module.b'] == 'def b():\n    pass'
+    assert specs == expected
 
 
 def test_extract_attribute_access():
@@ -163,9 +241,11 @@ def a():
     pass
 """)
 
-    assert imports.get_source_from_import('functions.a', '', 'functions') == {
-        'functions.a': 'def a():\n    pass'
-    }
+    assert imports.get_source_from_import('functions.a', '', 'functions',
+                                          Path('.').resolve()) == {
+                                              'functions.a':
+                                              'def a():\n    pass'
+                                          }
 
 
 def test_get_source_from_module_import(tmp_directory, tmp_imports):
@@ -181,6 +261,8 @@ functions.a()
 """
 
     # TODO: what if accessing attributes that do not exist e.g., functions.b()
-    assert imports.get_source_from_import('functions', code, 'functions') == {
-        'functions.a': 'def a():\n    pass'
-    }
+    assert imports.get_source_from_import('functions', code, 'functions',
+                                          Path('.').resolve()) == {
+                                              'functions.a':
+                                              'def a():\n    pass'
+                                          }

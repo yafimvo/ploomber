@@ -66,12 +66,16 @@ def get_origin(name):
     return Path(importlib.util.find_spec(name_parent).origin), False
 
 
-def get_source_from_import(name, source, name_defined):
+def get_source_from_import(name, source, name_defined, base):
     """
     """
     # if name is a symbol, return a dict with the source, if it's a module
     # return the sources for the attribtues used in source
     origin, is_module = get_origin(name)
+
+    # do not obtain sources for modules that arent in the project
+    if not parent_or_child(base, origin):
+        return {}
 
     if is_module:
         # everything except the last element
@@ -94,8 +98,7 @@ def get_source_from_import(name, source, name_defined):
 def extract_from_script(path_to_script):
     """Returns a mapping with name -> source for each import on the script
     """
-    # TODO: move this base thing to the parent_or_child logic
-    # base = Path(path_to_script).parent.resolve()
+    base = Path(path_to_script).parent.resolve()
     source = Path(path_to_script).read_text()
 
     m = parso.parse(source)
@@ -122,7 +125,7 @@ def extract_from_script(path_to_script):
 
             specs = {
                 **specs,
-                **get_source_from_import(name, source, name_defined)
+                **get_source_from_import(name, source, name_defined, base)
             }
 
             # TODO: check that the module is actually used in the script
@@ -132,10 +135,6 @@ def extract_from_script(path_to_script):
             # because we're going to track the __init__ which may be empty
             # unles we get the module attributes
 
-            # TODO: move this inside get_source_from_import
-            # if parent_or_child(base, origin):
-            #     # optimize this. read and parse only once
-            #     specs[name] = extract_symbol(origin.read_text(), symbol)
 
     return specs
 
@@ -160,12 +159,19 @@ def extract_attribute_access(code, name):
         # the newline leaf also has the dotted path as parent
         if leaf.type != 'newline' and extracted_name == name:
 
-            # get the last accessed attribute
+            children = leaf.parent.children
+            children_code = [c.get_code() for c in children]
 
-            # {one}.{two}.{three}.{last}
+            # get the last accessed attribute
+            # case 1 - fn call or getitem: {one}.{two}() or {one}.{two}[]
             # last is the function call or getitem (e.g., a.b(), a.b[1])
+            # case 2 - accessing property: {one}.{two}
+            # if there is a dot in the last token, then it's case 2
+            idx = -1 if children_code[-1][0] == '.' else -2
+
             # ignore first character (it is the dot)
-            last = leaf.parent.children[-2].get_code().strip()[1:]
+            last = children[idx].get_code().strip()[1:]
+
 
             # sibling = leaf.get_next_sibling()
             # code = None if not sibling else sibling.get_code()
