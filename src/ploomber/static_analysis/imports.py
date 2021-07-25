@@ -1,3 +1,7 @@
+"""
+Reference material:
+https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
+"""
 from itertools import chain
 import importlib
 from pathlib import Path
@@ -43,7 +47,6 @@ def get_origin(dotted_path):
         pass
     else:
         return (None, None) if not origin else (Path(origin), True)
-
 
     # name could be an attribute, not a module. so we try to locate
     # the module instead
@@ -128,8 +131,6 @@ def extract_from_script(path_to_script):
 
     specs = {}
 
-    
-
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
     for import_ in m.iter_imports():
@@ -139,7 +140,6 @@ def extract_from_script(path_to_script):
                                        import_.get_defined_names()):
             name = '.'.join([name.value for name in paths])
 
-
             # if import_name: import a.b, look for attributes of a.b
             # (e.g.,a.b.c)
             # if import_from: from a import b, look for attributes of b
@@ -147,8 +147,8 @@ def extract_from_script(path_to_script):
 
             # use the keyword next to import if doing (import X) and we are
             # not using the as keyword
-            if (import_.type == 'import_name'
-            and 'dotted_as_name' not in [c.type for c in import_.children]):
+            if (import_.type == 'import_name' and 'dotted_as_name'
+                    not in [c.type for c in import_.children]):
                 name_defined = name
             else:
                 name_defined = name_defined.value
@@ -165,7 +165,8 @@ def extract_attribute_access(code, name):
     """
     Extracts all attributes accessed with a given name. e.g., if name = 'obj',
     then this procedure returns all strings with the 'obj.{something}' form,
-    this includes things like: obj.something, obj.something[1], obj.something(1)
+    this includes things like: obj.something, obj.something[1],
+    obj.something(1)
 
     Parameters
     ----------
@@ -184,15 +185,15 @@ def extract_attribute_access(code, name):
     leaf = m.get_first_leaf()
 
     while leaf is not None:
-        
+
         # get the full matched dotte path (e.g., a.b.c.d())
         matched_dotted_path = leaf.parent.get_code().strip()
 
-        # newline and endmarker also have the dotted path as parent so we ignore
-        # them. make sure the matched dotted path starts with the name we want
-        # to check
+        # newline and endmarker also have the dotted path as parent so we
+        # ignore them. make sure the matched dotted path starts with the name
+        # we want to check
         if (leaf.type not in {'newline', 'endmarker'}
-            and matched_dotted_path.startswith(name)):
+                and matched_dotted_path.startswith(name)):
 
             # get all the elements in the dotted path
             children = leaf.parent.children
@@ -200,8 +201,10 @@ def extract_attribute_access(code, name):
 
             # get tokens that start with "." (to ignore function calls or
             # getitem)
-            last = '.'.join([token.replace('.', '') for token
-                             in children_code[n_tokens:] if token[0] == '.'])
+            last = '.'.join([
+                token.replace('.', '') for token in children_code[n_tokens:]
+                if token[0] == '.'
+            ])
 
             if last:
                 attributes.append(last)
@@ -224,11 +227,6 @@ def extract_symbol(code, name):
     name : str
         Symbol name
     """
-    # NOTE: should we import and inspect live objects? for python callables
-    # they should already been imported if the task executed but for scripts it
-    # means we have to import everything. perhaps do static analysis?
-    # we already have some code to find symbols using static analysis, re-use
-    # it
     m = parso.parse(code)
 
     for node in chain(m.iter_funcdefs(), m.iter_classdefs()):

@@ -73,9 +73,10 @@ another_module.a
             }
         ],
         # NOTE: this is only possible if "import package" triggers an
-        # "import package.sub" or "from package import sub". In such case "package"
-        # is modified and gets a new "sub" attribute. Here's an explanation:
-        # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-submodules-are-added-to-the-package-namespace-trap
+        # "import package.sub" or "from package import sub". In such case
+        # "package" is modified and gets a new "sub" attribute. Here's an
+        # explanation:
+        # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-submodules-are-added-to-the-package-namespace-trap # noqa
         [
             """
 import package
