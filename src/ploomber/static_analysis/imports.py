@@ -102,6 +102,9 @@ def get_source_from_import(dotted_path, source, name_defined, base):
 
     # is a single symbol
     else:
+        # TODO: maybe use the jedi library? it has a search function
+        # may solve the problem with imports inside __init__.py renames
+        # etc
         symbol = dotted_path.split('.')[-1]
         # TODO: only read once
         source = extract_symbol(origin.read_text(), symbol)

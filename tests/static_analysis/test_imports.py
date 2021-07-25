@@ -5,6 +5,15 @@ import pytest
 from ploomber.static_analysis import imports
 
 
+def write_recursively(*args, text=None):
+    path = Path(*args)
+    path.parent.mkdir(parents=True)
+    if text:
+        path.write_text(text)
+    else:
+        path.touch()
+
+
 @pytest.fixture
 def sample_files(tmp_directory, tmp_imports):
     Path('package').mkdir()
@@ -61,6 +70,19 @@ import another_module
 another_module.a
 """, {
                 'another_module.a': 'def a():\n    pass'
+            }
+        ],
+        # NOTE: this is only possible if "import package" triggers an
+        # "import package.sub" or "from package import sub". In such case "package"
+        # is modified and gets a new "sub" attribute. Here's an explanation:
+        # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-submodules-are-added-to-the-package-namespace-trap
+        [
+            """
+import package
+
+package.sub.x()
+""", {
+                'package.sub.x': 'def x():\n    pass'
             }
         ],
         [
@@ -155,11 +177,13 @@ sub_other.a()
         'built-in',
         'local-unused',
         'local',
+        'local-nested',
         'submodule',
         'submodule-empty',
         'from-import',
         'from-import-empty',
-        #  FIXME: look for references in the code
+        # FIXME: only retrieve source code if attributes are actually
+        # used in the code
         'from-import-multiple',
         'import-as',
         'submodule-import-as',
@@ -168,14 +192,8 @@ sub_other.a()
 def test_extract_from_script(sample_files, script, expected):
     Path('script.py').write_text(script)
 
-    # TODO: add a nested attribute
-    # e.g., import module
-    # retrieve source code module.sub_module.attribute
+    # TODO: finding imports recursively
 
-    # TODO: finding imports rescursively
-
-    # TODO: try with sub that does not have an __init__.py
-    # it still initializes the spec but origin is None
     # TODO: try with nested imports (i.e. inside a function)
 
     # TODO: try accessing an attribute that's imported in __init__
@@ -195,6 +213,9 @@ def test_extract_from_script(sample_files, script, expected):
 # NOTE: we don't need any verification logic. just find the package from
 # the first argument, then get the parents and locate the symbol/module
 # if the relative import is invalid, the task wont run anyway
+
+# TODO: add a test with a namespace module. e.g., the same module
+# as two different locations and we must look up in both to find a symbol
 
 
 def test_extract_attribute_access():
@@ -347,3 +368,69 @@ functions.a()
                                               'functions.a':
                                               'def a():\n    pass'
                                           }
+
+
+def test_missing_init_in_submodule(tmp_directory, tmp_imports):
+    write_recursively('package', '__init__.py')
+    # note that we are missing package/sub/__init__.py
+    # this works since Python 3.3
+    # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-missing-init-py-trap
+    write_recursively('package',
+                      'sub',
+                      'functions.py',
+                      text="""
+def a():
+    pass
+""")
+
+    code = """
+from package.sub import functions
+
+functions.a()
+"""
+
+    assert imports.get_source_from_import('package.sub.functions.a', code,
+                                          'functions',
+                                          Path('.').resolve()) == {
+                                              'package.sub.functions.a':
+                                              'def a():\n    pass'
+                                          }
+
+
+def test_missing_init_in_module(tmp_directory, tmp_imports):
+    # note that we are missing package/__init__.py
+    # this works since Python 3.3
+    # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-missing-init-py-trap
+    write_recursively('package',
+                      'functions.py',
+                      text="""
+def a():
+    pass
+""")
+
+    code = """
+from package.sub import functions
+
+functions.a()
+"""
+
+    assert imports.get_source_from_import('package.functions.a', code,
+                                          'functions',
+                                          Path('.').resolve()) == {
+                                              'package.functions.a':
+                                              'def a():\n    pass'
+                                          }
+
+
+# FIXME
+def test_missing_spec(tmp_directory, tmp_imports):
+    # this will causes the spec.origin to be None
+    Path('package').mkdir()
+
+    code = """
+import package
+
+package.a()
+"""
+    assert imports.get_source_from_import('package', code, 'package',
+                                          Path('.').resolve())
