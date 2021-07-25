@@ -1,5 +1,6 @@
 import pytest
-from ploomber.codediffer import CodeDiffer, normalize_python
+from ploomber.codediffer import (CodeDiffer, normalize_python,
+                                 _delete_python_comments)
 
 fn_w_docsting = '''
 def x():
@@ -143,3 +144,11 @@ def test_different_params():
                                  b_params={'a': 2},
                                  extension='py')
     assert res
+
+
+def test_delete_python_comments():
+    code = """\
+# a comment
+function.something()\
+"""
+    assert _delete_python_comments(code) == '           \nfunction.something()'
