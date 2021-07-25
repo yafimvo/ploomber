@@ -156,6 +156,9 @@ def test_extract_from_script(sample_files, script, expected):
     # TODO: ensure it only reports back accessed attribtues
     # try import module but also import module.sub_module
 
+    # TODO: try accessing an attribute that's imported in __init__
+    # hence the source isn't there...
+
     # TODO: try accessing a constant like dictionary defined in a module
     # e.g. module.sub['a'], should we also look for changes there?
     specs = imports.extract_from_script('script.py')

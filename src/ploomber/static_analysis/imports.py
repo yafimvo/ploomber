@@ -133,14 +133,6 @@ def extract_from_script(path_to_script):
                 **get_source_from_import(name, source, name_defined, base)
             }
 
-            # TODO: check that the module is actually used in the script
-            # or better only record used attributes
-            # otherwise we're going to make a lot of false positives.
-            # there's also risk of false negative if importing a sub-module
-            # because we're going to track the __init__ which may be empty
-            # unles we get the module attributes
-
-
     return specs
 
 
@@ -152,9 +144,6 @@ def extract_attribute_access(code, name):
 
     leaf = m.get_first_leaf()
 
-    # name_last_token = name.split('.')[-1]
-
-    # from ipdb import set_trace; set_trace()
 
     while leaf is not None:
         extracted_name = '.'.join(
