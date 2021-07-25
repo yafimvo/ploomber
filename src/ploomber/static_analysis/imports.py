@@ -141,7 +141,6 @@ def extract_from_script(path_to_script):
             # (e.g.,a.b.c)
             # if import_from: from a import b, look for attributes of b
             # (e.g., b.c)
-            # from ipdb import set_trace; set_trace()
 
             # use the keyword next to import if doing (import X) and we are
             # not using the as keyword
@@ -159,7 +158,6 @@ def extract_from_script(path_to_script):
     return specs
 
 
-# TODO: test with nested attributes and assignments
 def extract_attribute_access(code, name):
     """
     Extracts all attributes accessed with a given name. e.g., if name = 'obj',
@@ -179,45 +177,29 @@ def extract_attribute_access(code, name):
 
     attributes = []
 
+    n_tokens = len(name.split('.'))
     leaf = m.get_first_leaf()
 
-    # from ipdb import set_trace; set_trace()
-
-
     while leaf is not None:
-        extracted_name = '.'.join(
-            leaf.parent.get_code().strip().split('.')[:-1])
-        # extracted_name == name
+        
+        # get the full matched dotte path (e.g., a.b.c.d())
+        matched_dotted_path = leaf.parent.get_code().strip()
 
-        full = leaf.parent.get_code().strip()
-        n_tokens = len(name.split('.'))
+        # newline and endmarker also have the dotted path as parent so we ignore
+        # them. make sure the matched dotted path starts with the name we want
+        # to check
+        if (leaf.type not in {'newline', 'endmarker'}
+            and matched_dotted_path.startswith(name)):
 
-        # FIXME: does this only match once?
-        # the newline leaf also has the dotted path as parent
-        if leaf.type not in {'newline', 'endmarker'} and full.startswith(name):
-
+            # get all the elements in the dotted path
             children = leaf.parent.children
             children_code = [c.get_code() for c in children]
 
-            # get the last accessed attribute
-            # case 1 - fn call or getitem: {one}.{two}() or {one}.{two}[]
-            # last is the function call or getitem (e.g., a.b(), a.b[1])
-            # case 2 - accessing property: {one}.{two}
-            # if there is a dot in the last token, then it's case 2
-            # idx = -1 if children_code[-1][0] == '.' else -2
+            # get tokens that start with "." (to ignore function calls or
+            # getitem)
+            last = '.'.join([token.replace('.', '') for token
+                             in children_code[n_tokens:] if token[0] == '.'])
 
-            # ignore first character (it is the dot)
-            # last = children[idx].get_code().strip()[1:]
-
-            last = '.'.join([token.replace('.', '') for token in children_code[n_tokens:] if token[0] == '.'])
-
-
-            # sibling = leaf.get_next_sibling()
-            # code = None if not sibling else sibling.get_code()
-
-            # ignore anything other than attribute access
-            # if sibling and code[0] == '.':
-            # attributes.append(code[1:])
             if last:
                 attributes.append(last)
 
