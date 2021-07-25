@@ -34,12 +34,16 @@ def parent_or_child(path_to_script, origin):
 
 def get_origin(dotted_path):
     """
-    Gets the spec origina for the given dotted path
+    Gets the spec origina for the given dotted path. Returns None cannot
+    find a spec for the dotted path
     """
     try:
-        return Path(importlib.util.find_spec(dotted_path).origin), True
+        origin = importlib.util.find_spec(dotted_path).origin
     except ModuleNotFoundError:
         pass
+    else:
+        return (None, None) if not origin else (Path(origin), True)
+
 
     # name could be an attribute, not a module. so we try to locate
     # the module instead
@@ -77,17 +81,13 @@ def get_source_from_import(dotted_path, source, name_defined, base):
         Source locationn (source argument), if the imported source code is not
         a child or a parent of the source, it is ignored
     """
-    # TODO: nested references. e.g.,
-    # import module
-    # module.sub_module.attribute(1)
-    # this wont return the source code for attribute!
-
     # if name is a symbol, return a dict with the source, if it's a module
-    # return the sources for the attribtues used in source
+    # return the sources for the attribtues used in source. Note that origin
+    # may be None, e.g., if there is an empty package/ (no __init__.py)
     origin, is_module = get_origin(dotted_path)
 
     # do not obtain sources for modules that arent in the project
-    if not parent_or_child(base, origin):
+    if not origin or not parent_or_child(base, origin):
         return {}
 
     if is_module:

@@ -422,7 +422,6 @@ functions.a()
                                           }
 
 
-# FIXME
 def test_missing_spec(tmp_directory, tmp_imports):
     # this will causes the spec.origin to be None
     Path('package').mkdir()
@@ -433,4 +432,4 @@ import package
 package.a()
 """
     assert imports.get_source_from_import('package', code, 'package',
-                                          Path('.').resolve())
+                                          Path('.').resolve()) == {}
