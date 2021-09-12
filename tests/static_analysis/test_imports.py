@@ -1,8 +1,18 @@
+import os
 from pathlib import Path
 
 import pytest
 
 from ploomber.static_analysis import imports
+
+# TODO: add a test with a namespace module. e.g., the same module
+# as two different locations and we must look up in both to find a symbol
+
+# TODO: warn on import shadowing
+# import x
+# x = 1
+
+# TODO: add test with an import of am module that doesn't exist
 
 
 def write_recursively(*args, text=None):
@@ -21,6 +31,9 @@ def sample_files(tmp_directory, tmp_imports):
     Path('package', 'sub').mkdir()
     Path('package', 'sub', '__init__.py').write_text("""
 def x():
+    pass
+
+def z():
     pass
 """)
     Path('package', 'sub_other').mkdir()
@@ -221,7 +234,7 @@ import test_pkg
 def x():
     pass
 
-from some_modul import *
+from some_module import *
 """,
 ])
 def test_warns_if_star_import(tmp_directory, code):
@@ -273,20 +286,143 @@ def test_no_warning_if_built_in_or_external_module(tmp_directory, code):
     assert not len(record)
 
 
-# test relative imports
-# from . import y
-# from .x import y
-# from ..z import y
-# NOTE: we don't need any verification logic. just find the package from
-# the first argument, then get the parents and locate the symbol/module
-# if the relative import is invalid, the task wont run anyway
+@pytest.mark.parametrize('script, expected', [
+    [
+        """
+from . import module
 
-# TODO: add a test with a namespace module. e.g., the same module
-# as two different locations and we must look up in both to find a symbol
+module.a()
+    """, {
+            'module.a': 'def a():\n    pass'
+        }
+    ],
+    [
+        """
+from . import module as some_alias
 
-# TODO: warn on import shadowing
-# import x
-# x = 1
+some_alias.a()
+    """, {
+            'module.a': 'def a():\n    pass'
+        }
+    ],
+    [
+        """
+from . import module
+
+module.a()
+
+class A:
+    def __init__(self):
+        module.b()
+    """, {
+            'module.a': 'def a():\n    pass',
+            'module.b': 'def b():\n    pass',
+        }
+    ],
+    [
+        """
+from .package import sub
+
+sub.x()
+    """, {
+            'package.sub.x': 'def x():\n    pass'
+        }
+    ],
+    [
+        """
+from .package import sub as some_alias
+
+some_alias.x()
+    """, {
+            'package.sub.x': 'def x():\n    pass'
+        }
+    ],
+    [
+        """
+from .package import sub
+
+sub.x()
+
+def fn():
+    df = sub.z()
+    """, {
+            'package.sub.x': 'def x():\n    pass',
+            'package.sub.z': 'def z():\n    pass',
+        }
+    ],
+],
+                         ids=[
+                             'sibling-one-import-one-accessed',
+                             'sibling-one-import-one-accessed-aliased',
+                             'sibling-one-import-many-accessed',
+                             'nested-one-import-one-accessed',
+                             'nested-one-import-one-accessed-aliased',
+                             'nested-one-import-many-accessed',
+                         ])
+def test_extract_from_script_with_relative_imports(
+    sample_files,
+    script,
+    expected,
+):
+    Path('script.py').write_text(script)
+    specs = imports.extract_from_script('script.py')
+    assert specs == expected
+
+
+@pytest.mark.parametrize('script, expected', [
+    [
+        """
+from .. import module
+
+module.a()
+    """, {
+            'module.a': 'def a():\n    pass'
+        }
+    ],
+    [
+        """
+from .. import module as some_alias
+
+some_alias.a()
+    """, {
+            'module.a': 'def a():\n    pass'
+        }
+    ],
+    [
+        """
+from .. import module
+
+module.a()
+
+class A:
+    def __init__(self):
+        module.b()
+    """, {
+            'module.a': 'def a():\n    pass',
+            'module.b': 'def b():\n    pass',
+        }
+    ],
+],
+                         ids=[
+                             'grandparent-one-import-one-accessed',
+                             'grandparent-one-import-one-accessed-aliased',
+                             'grandparent-one-import-many-accessed',
+                         ])
+# NOTE: these tests are passing because of the parent_or_child function
+# e.g. one is /path/to/package
+# another is /path/to/module.py
+# I think we should remove that function and change it for something that
+# ignores anything inside site-packages
+# TODO: add from ..something import x
+def test_extract_from_script_with_relative_imports_nested(
+    sample_files,
+    script,
+    expected,
+):
+    os.chdir('package')
+    Path('script.py').write_text(script)
+    specs = imports.extract_from_script('script.py')
+    assert specs == expected
 
 
 def test_extract_attribute_access():

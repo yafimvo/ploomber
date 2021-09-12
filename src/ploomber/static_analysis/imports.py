@@ -67,7 +67,7 @@ def should_track_dotted_path(path_to_script, dotted_path):
         return False
 
 
-def get_source_from_import(dotted_path, source, name_defined, base):
+def get_source_from_import(dotted_path, source_code, name_defined, base):
     """
     Get source code for the given dotted path. Returns a dictionary with a
     single key-value pair if the dotted path is an module attribute, if it's
@@ -80,7 +80,7 @@ def get_source_from_import(dotted_path, source, name_defined, base):
         Dotted path with the module/attribute location. e.g., module.sub_module
         or module.sub_module.attribute
 
-    source : str
+    source_code : str
         The source code where the import statement used to generatet the dotted
         path exists
 
@@ -106,7 +106,8 @@ def get_source_from_import(dotted_path, source, name_defined, base):
 
     if is_module:
         # everything except the last element
-        accessed_attributes = extract_attribute_access(source, name_defined)
+        accessed_attributes = extract_attribute_access(source_code,
+                                                       name_defined)
 
         # TODO: only read origin once
         return {
@@ -121,8 +122,8 @@ def get_source_from_import(dotted_path, source, name_defined, base):
         # etc
         symbol = dotted_path.split('.')[-1]
         # TODO: only read once
-        source = extract_symbol(origin.read_text(), symbol)
-        return {dotted_path: source}
+        source_code_extracted = extract_symbol(origin.read_text(), symbol)
+        return {dotted_path: source_code_extracted}
 
 
 def extract_from_script(path_to_script):
@@ -136,9 +137,9 @@ def extract_from_script(path_to_script):
     Star imports (from module import *) are ignored
     """
     base = Path(path_to_script).parent.resolve()
-    source = Path(path_to_script).read_text()
+    source_code = Path(path_to_script).read_text()
 
-    m = parso.parse(source)
+    tree = parso.parse(source_code)
 
     specs = {}
 
@@ -146,7 +147,7 @@ def extract_from_script(path_to_script):
 
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
-    for import_ in m.iter_imports():
+    for import_ in tree.iter_imports():
         if (import_.is_star_import() and should_track_dotted_path(
                 path_to_script, import_.children[1].value)):
             star_imports.append(import_.get_code().strip())
@@ -172,7 +173,7 @@ def extract_from_script(path_to_script):
 
             specs = {
                 **specs,
-                **get_source_from_import(name, source, name_defined, base)
+                **get_source_from_import(name, source_code, name_defined, base)
             }
 
     if star_imports:
