@@ -2,6 +2,7 @@
 Reference material:
 https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
 """
+import warnings
 from itertools import chain
 import importlib
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 import parso
 
 from ploomber.codediffer import _delete_python_comments
+from ploomber.io import pretty_print
 
 
 def parent_or_child(path_to_script, origin):
@@ -17,7 +19,7 @@ def parent_or_child(path_to_script, origin):
     two arguments
     """
     try:
-        origin.relative_to(path_to_script)
+        Path(origin).relative_to(path_to_script)
     except ValueError:
         child = False
     else:
@@ -27,7 +29,7 @@ def parent_or_child(path_to_script, origin):
         return True
 
     try:
-        path_to_script.relative_to(origin)
+        Path(path_to_script).relative_to(origin)
     except ValueError:
         parent = False
     else:
@@ -38,7 +40,7 @@ def parent_or_child(path_to_script, origin):
 
 def get_origin(dotted_path):
     """
-    Gets the spec origina for the given dotted path. Returns None cannot
+    Gets the spec origin for the given dotted path. Returns None if cannot
     find a spec for the dotted path
     """
     try:
@@ -54,6 +56,15 @@ def get_origin(dotted_path):
 
     # NOTE: find_spec is going to import the package
     return Path(importlib.util.find_spec(name_parent).origin), False
+
+
+def should_track_dotted_path(path_to_script, dotted_path):
+    origin, found_spec = get_origin(dotted_path)
+
+    if found_spec:
+        return parent_or_child(path_to_script, origin)
+    else:
+        return False
 
 
 def get_source_from_import(dotted_path, source, name_defined, base):
@@ -131,9 +142,15 @@ def extract_from_script(path_to_script):
 
     specs = {}
 
+    star_imports = []
+
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
     for import_ in m.iter_imports():
+        if (import_.is_star_import() and should_track_dotted_path(
+                path_to_script, import_.children[1].value)):
+            star_imports.append(import_.get_code().strip())
+
         # iterate over paths. e.g., from mod import a, b
         # iterates over a and b
         for paths, name_defined in zip(import_.get_paths(),
@@ -157,6 +174,11 @@ def extract_from_script(path_to_script):
                 **specs,
                 **get_source_from_import(name, source, name_defined, base)
             }
+
+    if star_imports:
+        warnings.warn(f'{str(path_to_script)!r} contains star imports '
+                      f'({pretty_print.iterable(star_imports)}) '
+                      'which prevents appropriate source code tracking.')
 
     return specs
 

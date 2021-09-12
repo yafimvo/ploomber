@@ -59,12 +59,12 @@ import math
 math.square(1)
 """, {}],
         ["""
-# module
+# local module imported but unused
 import another_module
 """, {}],
         [
             """
-# module
+# local module
 import another_module
 
 another_module.a
@@ -138,7 +138,7 @@ some_alias.a
         ],
         [
             """
-# submodule
+# submodule with alias
 import package.sub as some_alias
 
 some_alias.x()
@@ -154,9 +154,9 @@ import math
 import another_module
 # submodule
 import package.sub
-# from .. import {sub-module}
+# from {some-pkg} import {sub-module}
 from package import sub_other
-# from .. import {attribute}
+# from {some-pkg} import {attribute}
 from module import a, b
 
 another_module.a()
@@ -207,6 +207,72 @@ def test_extract_from_script(sample_files, script, expected):
     assert specs == expected
 
 
+@pytest.mark.parametrize('code', [
+    """
+from some_module import *
+""",
+    """
+from some_module import *
+from another_module import *
+""",
+    """
+import test_pkg
+
+def x():
+    pass
+
+from some_modul import *
+""",
+])
+def test_warns_if_star_import(tmp_directory, code):
+    Path('some_module.py').touch()
+    Path('another_module.py').touch()
+    Path('script.py').write_text(code)
+
+    with pytest.warns(UserWarning) as record:
+        specs = imports.extract_from_script('script.py')
+
+    assert specs == {}
+    assert len(record) == 1
+    assert 'contains star imports' in record[0].message.args[0]
+
+
+@pytest.mark.parametrize('code', [
+    """
+from math import *
+""",
+    """
+from math import *
+
+class A:
+    pas
+
+from string import *
+""",
+    """
+from test_pkg import *
+""",
+    """
+from test_pkg import *
+from math import *
+""",
+],
+                         ids=[
+                             'built-in',
+                             'built-in-many',
+                             'external-module',
+                             'mixed',
+                         ])
+def test_no_warning_if_built_in_or_external_module(tmp_directory, code):
+    Path('script.py').write_text(code)
+
+    with pytest.warns(None) as record:
+        specs = imports.extract_from_script('script.py')
+
+    assert specs == {}
+    assert not len(record)
+
+
 # test relative imports
 # from . import y
 # from .x import y
@@ -217,6 +283,10 @@ def test_extract_from_script(sample_files, script, expected):
 
 # TODO: add a test with a namespace module. e.g., the same module
 # as two different locations and we must look up in both to find a symbol
+
+# TODO: warn on import shadowing
+# import x
+# x = 1
 
 
 def test_extract_attribute_access():
