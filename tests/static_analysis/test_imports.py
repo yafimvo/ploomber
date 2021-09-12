@@ -236,8 +236,15 @@ def x():
 
 from some_module import *
 """,
-])
-def test_warns_if_star_import(tmp_directory, code):
+],
+                         ids=[
+                             'one',
+                             'two',
+                             'one-middle',
+                         ])
+# FIXME: should_track_dotted_path in extract_from_script is breaking this
+# FIXME: remove add_current_to_sys_path once we stop using find_spec
+def test_warns_if_star_import(tmp_directory, add_current_to_sys_path, code):
     Path('some_module.py').touch()
     Path('another_module.py').touch()
     Path('script.py').write_text(code)

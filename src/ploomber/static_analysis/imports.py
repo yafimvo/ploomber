@@ -44,6 +44,8 @@ def get_origin(dotted_path):
     find a spec for the dotted path
     """
     try:
+        # FIXME: how would this work for relative imports if the .. parts
+        # does not get here?
         origin = importlib.util.find_spec(dotted_path).origin
     except ModuleNotFoundError:
         pass
