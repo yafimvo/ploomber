@@ -559,11 +559,9 @@ def a():
     pass
 """)
 
-    assert imports.get_source_from_import('functions.a', '', 'functions',
-                                          Path('.').resolve()) == {
-                                              'functions.a':
-                                              'def a():\n    pass'
-                                          }
+    assert imports.get_source_from_import('functions.a', '', 'functions') == {
+        'functions.a': 'def a():\n    pass'
+    }
 
 
 def test_get_source_with_nested_access(sample_files, tmp_imports,
@@ -571,8 +569,8 @@ def test_get_source_with_nested_access(sample_files, tmp_imports,
     code = """
 package.sub.x()
 """
-    assert imports.get_source_from_import('package.sub', code, 'package.sub',
-                                          Path('.').resolve()) == {
+    assert imports.get_source_from_import('package.sub', code,
+                                          'package.sub') == {
                                               'package.sub.x':
                                               'def x():\n    pass'
                                           }
@@ -591,11 +589,9 @@ functions.a()
 """
 
     # TODO: what if accessing attributes that do not exist e.g., functions.b()
-    assert imports.get_source_from_import('functions', code, 'functions',
-                                          Path('.').resolve()) == {
-                                              'functions.a':
-                                              'def a():\n    pass'
-                                          }
+    assert imports.get_source_from_import('functions', code, 'functions') == {
+        'functions.a': 'def a():\n    pass'
+    }
 
 
 def test_missing_init_in_submodule(tmp_directory, tmp_imports):
@@ -618,8 +614,7 @@ functions.a()
 """
 
     assert imports.get_source_from_import('package.sub.functions.a', code,
-                                          'functions',
-                                          Path('.').resolve()) == {
+                                          'functions') == {
                                               'package.sub.functions.a':
                                               'def a():\n    pass'
                                           }
@@ -643,8 +638,7 @@ functions.a()
 """
 
     assert imports.get_source_from_import('package.functions.a', code,
-                                          'functions',
-                                          Path('.').resolve()) == {
+                                          'functions') == {
                                               'package.functions.a':
                                               'def a():\n    pass'
                                           }
@@ -661,5 +655,55 @@ import package
 
 package.a()
 """
-    assert imports.get_source_from_import('package', code, 'package',
-                                          Path('.').resolve()) == {}
+    assert imports.get_source_from_import('package', code, 'package') == {}
+
+
+# TODO: same test cases as when extracting from script
+@pytest.mark.parametrize('fn_name, expected', [
+    ['call_do', {
+        'utils.do': 'def do():\n    pass'
+    }],
+    ['call_do_more', {
+        'utils.do_more': 'def do_more():\n    pass'
+    }],
+    [
+        'call_both', {
+            'utils.do': 'def do():\n    pass',
+            'utils.do_more': 'def do_more():\n    pass',
+        }
+    ],
+])
+def test_extract_from_function(sample_files, tmp_imports, fn_name, expected):
+    Path('functions.py').write_text("""
+from utils import do, do_more
+
+def call_do():
+    do()
+
+def call_do_more():
+    for x in range(10):
+        do_more()
+
+def call_both():
+    for x in range(10):
+        do_more()
+
+    do()
+
+
+def call_nothing():
+    pass
+""")
+
+    Path('utils.py').write_text("""
+def do():
+    pass
+
+def do_more():
+    pass
+""")
+
+    import functions
+
+    assert (imports.extract_from_callable(getattr(functions,
+                                                  fn_name)) == expected)

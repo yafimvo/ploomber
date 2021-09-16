@@ -8,6 +8,7 @@ from itertools import chain
 import importlib
 from pathlib import Path
 import site
+import inspect
 
 import parso
 
@@ -86,7 +87,7 @@ def get_origin(dotted_path):
         return Path(spec.origin), False
 
 
-def should_track_dotted_path(path_to_script, dotted_path):
+def should_track_dotted_path(dotted_path):
     origin, found_spec = get_origin(dotted_path)
 
     if found_spec:
@@ -95,7 +96,7 @@ def should_track_dotted_path(path_to_script, dotted_path):
         return False
 
 
-def get_source_from_import(dotted_path, source_code, name_defined, base):
+def get_source_from_import(dotted_path, source_code, name_defined):
     """
     Get source code for the given dotted path. Returns a dictionary with a
     single key-value pair if the dotted path is an module attribute, if it's
@@ -118,10 +119,6 @@ def get_source_from_import(dotted_path, source_code, name_defined, base):
         defines it in the some_name variable. This is used to look for
         references in the code and return the source for the requested
         attributes
-
-    base : str
-        Source locationn (source argument), if the imported source code is not
-        a child or a parent of the source, it is ignored
     """
     # if name is a symbol, return a dict with the source, if it's a module
     # return the sources for the attribtues used in source. Note that origin
@@ -167,10 +164,21 @@ def extract_from_script(path_to_script):
     -----
     Star imports (from module import *) are ignored
     """
-    base = Path(path_to_script).parent.resolve()
-    source_code = Path(path_to_script).read_text()
+    source = Path(path_to_script).read_text()
+    return _extract_from_source_and_imports(source, path_to_script)
 
-    tree = parso.parse(source_code)
+
+def extract_from_callable(callable_):
+    # NOTE: we can use the inspect module here since by the time we call
+    # this, the function has already been imported and executed
+    source = inspect.getsource(callable_)
+    path_to_source = inspect.getsourcefile(callable_)
+    imports = Path(path_to_source).read_text()
+    return _extract_from_source_and_imports(source, path_to_source, imports)
+
+
+def _extract_from_source_and_imports(source, path_to_source, imports=None):
+    tree = parso.parse(imports or source)
 
     specs = {}
 
@@ -179,8 +187,8 @@ def extract_from_script(path_to_script):
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
     for import_ in tree.iter_imports():
-        if (import_.is_star_import() and should_track_dotted_path(
-                path_to_script, import_.children[1].value)):
+        if (import_.is_star_import()
+                and should_track_dotted_path(import_.children[1].value)):
             star_imports.append(import_.get_code().strip())
 
         # iterate over paths. e.g., from mod import a, b
@@ -204,11 +212,11 @@ def extract_from_script(path_to_script):
 
             specs = {
                 **specs,
-                **get_source_from_import(name, source_code, name_defined, base)
+                **get_source_from_import(name, source, name_defined)
             }
 
     if star_imports:
-        warnings.warn(f'{str(path_to_script)!r} contains star imports '
+        warnings.warn(f'{str(path_to_source)!r} contains star imports '
                       f'({pretty_print.iterable(star_imports)}) '
                       'which prevents appropriate source code tracking.')
 
