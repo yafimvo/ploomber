@@ -131,6 +131,8 @@ from package import sub_other
 
 """, {}
         ],
+        # FIXME: the output reference here is wrong. a, b arent used so they should
+        # be ignored
         [
             """
 # from .. import attribute1, attrbute2
@@ -552,14 +554,18 @@ class B:
     assert imports.extract_symbol(code, symbol) == source
 
 
-# TODO: should this check that the function is called?
+# TODO: try with a[1], a.something
 def test_get_source_from_function_import(tmp_directory, tmp_imports):
     Path('functions.py').write_text("""
 def a():
     pass
 """)
 
-    assert imports.get_source_from_import('functions.a', '', 'functions') == {
+    code = """
+a()
+"""
+
+    assert imports.get_source_from_import('functions.a', code, 'a') == {
         'functions.a': 'def a():\n    pass'
     }
 
@@ -658,7 +664,20 @@ package.a()
     assert imports.get_source_from_import('package', code, 'package') == {}
 
 
+def test_get_source_from_function_source(tmp_directory, tmp_imports):
+    Path('utils.py').write_text("""
+def do_more():
+    pass
+""")
+    assert imports.get_source_from_import('utils.do_more',
+                                          'def call_do():\n    do()\n',
+                                          'do_more') == {}
+
+
+# TODO: cover the case when a function calls another function/class defined
+# in the same file
 # TODO: same test cases as when extracting from script
+# FIXME: support class inheritance?
 @pytest.mark.parametrize('fn_name, expected', [
     ['call_do', {
         'utils.do': 'def do():\n    pass'
@@ -672,10 +691,35 @@ package.a()
             'utils.do_more': 'def do_more():\n    pass',
         }
     ],
-])
+    ['call_local', {
+        'functions.call_do': 'def call_do():\n    do()',
+    }],
+    [
+        'call_local_class', {
+            'functions.LocalClass': 'class LocalClass:\n    pass',
+        }
+    ],
+    [
+        'call_external_class', {
+            'utils.ExternalClass': 'class ExternalClass:\n    pass',
+        }
+    ],
+],
+                         ids=[
+                             'call_do',
+                             'call_do_more',
+                             'call_both',
+                             'call_local',
+                             'call_local_class',
+                             'call_external_class',
+                         ])
 def test_extract_from_function(sample_files, tmp_imports, fn_name, expected):
     Path('functions.py').write_text("""
 from utils import do, do_more
+import utils
+
+class LocalClass:
+    pass
 
 def call_do():
     do()
@@ -690,12 +734,25 @@ def call_both():
 
     do()
 
-
 def call_nothing():
     pass
+
+def call_local():
+    return call_do()
+
+
+def call_local_class():
+    obj = LocalClass()
+
+
+def call_external_class():
+    obj = utils.ExternalClass()
 """)
 
     Path('utils.py').write_text("""
+class ExternalClass:
+    pass
+
 def do():
     pass
 
@@ -707,3 +764,109 @@ def do_more():
 
     assert (imports.extract_from_callable(getattr(functions,
                                                   fn_name)) == expected)
+
+
+@pytest.mark.parametrize('code', [
+    """
+def fn():
+    do_more()
+""", """
+def fn():
+    do_more['something']
+""", """
+def fn():
+    do_more.some_attribute
+""", """
+def fn():
+    do_more.some_static_method()
+""", """
+def fn():
+    new_name = do_more
+""", """
+def fn():
+    do_more
+"""
+])
+def test_did_access_name(code):
+    assert imports.did_access_name(code, 'do_more')
+
+
+def test_did_access_name_false():
+    code = """
+def call_do_more():
+    for x in range(10):
+        do_more()
+"""
+    assert not imports.did_access_name(code, 'do')
+
+
+@pytest.mark.parametrize('code, names, expected', [
+    [
+        """
+a()
+b()
+""",
+        ['a', 'b', 'c'],
+        ['a', 'b'],
+    ],
+    [
+        """
+a.something()
+z()
+""",
+        ['a', 'b', 'x'],
+        ['a'],
+    ],
+])
+def test_accessed_names(code, names, expected):
+    assert imports.get_accessed_names(code, names) == expected
+
+
+@pytest.mark.parametrize('code, expected', [
+    [
+        """
+def a():
+    pass
+
+def b():
+    pass
+
+def c():
+    pass
+
+def fn():
+    a()
+""",
+        {
+            'functions.a': 'def a():\n    pass'
+        },
+    ],
+    [
+        """
+def a():
+    pass
+
+
+def b():
+    pass
+
+def fn(something):
+    a()
+
+    numbers = [b(n) for n in something]
+""",
+        {
+            'functions.a': 'def a():\n    pass',
+            'functions.b': 'def b():\n    pass'
+        },
+    ],
+])
+def test_get_source_from_accessed_symbol_in_callable(tmp_directory,
+                                                     tmp_imports, code,
+                                                     expected):
+    Path('functions.py').write_text(code)
+
+    import functions
+
+    assert imports.get_source_from_accessed_symbols_in_callable(
+        functions.fn) == expected

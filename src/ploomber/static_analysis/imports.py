@@ -129,6 +129,7 @@ def get_source_from_import(dotted_path, source_code, name_defined):
     if not origin or not should_track(origin):
         return {}
 
+    # it's a module (user may access only a few attributes)
     if is_module:
         # everything except the last element
         accessed_attributes = extract_attribute_access(source_code,
@@ -143,15 +144,36 @@ def get_source_from_import(dotted_path, source_code, name_defined):
         # remove symbols that do not exist
         return {k: v for k, v in out.items() if v is not None}
 
-    # is a single symbol
+    # it's a single symbol (user imported the function/class)
     else:
         # TODO: maybe use the jedi library? it has a search function
         # may solve the problem with imports inside __init__.py renames
         # etc
+        # NOTE: can I use "name_defined" here instead of "symbol"
         symbol = dotted_path.split('.')[-1]
+
+        # TODO: maybe use the jedi library? it has a search function
+        # may solve the problem with imports inside __init__.py renames
+        # etc
+        # NOTE: can I use "name_defined" here instead of "symbol"
+        symbol = dotted_path.split('.')[-1]
+        return _get_source_from_accessed_symbol(
+            dotted_path,
+            source_code,
+            origin.read_text(),
+            symbol,
+        )
+
+
+def _get_source_from_accessed_symbol(dotted_path, source_code, origin, symbol):
+    name_accessed = did_access_name(source_code, symbol)
+
+    if name_accessed:
         # TODO: only read once
-        source_code_extracted = extract_symbol(origin.read_text(), symbol)
+        source_code_extracted = extract_symbol(origin, symbol)
         return {dotted_path: source_code_extracted}
+    else:
+        return {}
 
 
 def extract_from_script(path_to_script):
@@ -174,18 +196,51 @@ def extract_from_callable(callable_):
     source = inspect.getsource(callable_)
     path_to_source = inspect.getsourcefile(callable_)
     imports = Path(path_to_source).read_text()
-    return _extract_from_source_and_imports(source, path_to_source, imports)
+
+    # this returns symbols used through imports
+    from_imports = _extract_from_source_and_imports(source, path_to_source,
+                                                    imports)
+    # and this from symbols defined in the same file
+    local = get_source_from_accessed_symbols_in_callable(callable_)
+
+    # NOTE: what if there are duplicates?
+    # import x
+    # def x():
+    #     pass
+    # maybe a warning?
+    return {**from_imports, **local}
 
 
-def _extract_from_source_and_imports(source, path_to_source, imports=None):
-    tree = parso.parse(imports or source)
+def get_source_from_accessed_symbols_in_callable(callable_):
+    # is there any differente between this and inspect.getmodule?
+    mod_name = callable_.__module__
+
+    tree = parso.parse(Path(inspect.getsourcefile(callable_)).read_text())
+
+    defined = {}
+
+    for def_ in chain(tree.iter_funcdefs(), tree.iter_classdefs()):
+        if def_.name.value != callable_.__name__:
+            defined[def_.name.value] = def_.get_code().strip()
+
+    fn_source = inspect.getsource(callable_)
+
+    accessed = get_accessed_names(fn_source, defined)
+
+    return {f'{mod_name}.{k}': v for k, v in defined.items() if k in accessed}
+
+
+def _extract_from_source_and_imports(source_code,
+                                     path_to_source,
+                                     imports=None):
+    tree = parso.parse(imports or source_code)
 
     specs = {}
-
     star_imports = []
 
     # this for only iters over top-level imports (?), should we ignored
     # nested ones?
+
     for import_ in tree.iter_imports():
         if (import_.is_star_import()
                 and should_track_dotted_path(import_.children[1].value)):
@@ -212,7 +267,7 @@ def _extract_from_source_and_imports(source, path_to_source, imports=None):
 
             specs = {
                 **specs,
-                **get_source_from_import(name, source, name_defined)
+                **get_source_from_import(name, source_code, name_defined)
             }
 
     if star_imports:
@@ -221,6 +276,47 @@ def _extract_from_source_and_imports(source, path_to_source, imports=None):
                       'which prevents appropriate source code tracking.')
 
     return specs
+
+
+def did_access_name(code, name):
+
+    # delete comments otherwise the leaf.parent.get_code() will fail
+    m = parso.parse(_delete_python_comments(code))
+
+    leaf = m.get_first_leaf()
+
+    while leaf is not None:
+        if leaf.get_code().strip() == name:
+            return True
+
+        # can i make this faster? is there a way to get the next leaf
+        # of certain type?
+        leaf = leaf.get_next_leaf()
+
+    return False
+
+
+def get_accessed_names(code, names):
+    remaining = set(names)
+    accessed = []
+
+    # delete comments otherwise the leaf.parent.get_code() will fail
+    m = parso.parse(_delete_python_comments(code))
+
+    leaf = m.get_first_leaf()
+
+    while leaf is not None and len(remaining):
+        name_found = leaf.get_code().strip()
+
+        if name_found in remaining:
+            remaining.remove(name_found)
+            accessed.append(name_found)
+
+        # can i make this faster? is there a way to get the next leaf
+        # of certain type?
+        leaf = leaf.get_next_leaf()
+
+    return accessed
 
 
 def extract_attribute_access(code, name):
