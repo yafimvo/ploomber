@@ -2,17 +2,22 @@
 Reference material:
 https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
 """
+import sys
 import warnings
 from itertools import chain
 import importlib
 from pathlib import Path
+import site
 
 import parso
 
 from ploomber.codediffer import _delete_python_comments
 from ploomber.io import pretty_print
 
+_SITE_PACKAGES = site.getsitepackages()
 
+
+# TODO: delete this
 def parent_or_child(path_to_script, origin):
     """
     Returns true if there is a parent or child relationship between the
@@ -38,6 +43,22 @@ def parent_or_child(path_to_script, origin):
     return parent
 
 
+def should_track(path_to_script):
+    # TODO: there might be some edge cases if running in a virtual env
+    # and sys/site returns the paths to the python installation where the
+    # virtual env was created from
+    if Path(path_to_script).is_relative_to(sys.prefix):
+        return False
+
+    if Path(path_to_script).is_relative_to(sys.base_prefix):
+        return False
+
+    for path in _SITE_PACKAGES:
+        if Path(path_to_script).is_relative_to(path):
+            return False
+    return True
+
+
 def get_origin(dotted_path):
     """
     Gets the spec origin for the given dotted path. Returns None if cannot
@@ -46,25 +67,30 @@ def get_origin(dotted_path):
     try:
         # FIXME: how would this work for relative imports if the .. parts
         # does not get here?
-        origin = importlib.util.find_spec(dotted_path).origin
+        spec = importlib.util.find_spec(dotted_path)
     except ModuleNotFoundError:
-        pass
-    else:
-        return (None, None) if not origin else (Path(origin), True)
+        spec = None
+
+    if spec:
+        return Path(spec.origin), True
 
     # name could be an attribute, not a module. so we try to locate
     # the module instead
     name_parent = '.'.join(dotted_path.split('.')[:-1])
 
-    # NOTE: find_spec is going to import the package
-    return Path(importlib.util.find_spec(name_parent).origin), False
+    try:
+        spec = importlib.util.find_spec(name_parent)
+    except ModuleNotFoundError:
+        return None, None
+    else:
+        return Path(spec.origin), False
 
 
 def should_track_dotted_path(path_to_script, dotted_path):
     origin, found_spec = get_origin(dotted_path)
 
     if found_spec:
-        return parent_or_child(path_to_script, origin)
+        return should_track(origin)
     else:
         return False
 
@@ -103,7 +129,7 @@ def get_source_from_import(dotted_path, source_code, name_defined, base):
     origin, is_module = get_origin(dotted_path)
 
     # do not obtain sources for modules that arent in the project
-    if not origin or not parent_or_child(base, origin):
+    if not origin or not should_track(origin):
         return {}
 
     if is_module:
@@ -112,10 +138,13 @@ def get_source_from_import(dotted_path, source_code, name_defined, base):
                                                        name_defined)
 
         # TODO: only read origin once
-        return {
+        out = {
             f'{dotted_path}.{attr}': extract_symbol(origin.read_text(), attr)
             for attr in accessed_attributes
         }
+
+        # remove symbols that do not exist
+        return {k: v for k, v in out.items() if v is not None}
 
     # is a single symbol
     else:

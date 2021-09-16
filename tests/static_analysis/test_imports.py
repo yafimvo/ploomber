@@ -90,9 +90,10 @@ another_module.a
         # "package" is modified and gets a new "sub" attribute. Here's an
         # explanation:
         # http://python-notes.curiousefficiency.org/en/latest/python_concepts/import_traps.html#the-submodules-are-added-to-the-package-namespace-trap # noqa
+        # FIXME: the next two cases are duplicated
         [
             """
-import package
+import package.sub
 
 package.sub.x()
 """, {
@@ -270,10 +271,10 @@ class A:
 from string import *
 """,
     """
-from test_pkg import *
+from jupyter import *
 """,
     """
-from test_pkg import *
+from jupyter import *
 from math import *
 """,
 ],
@@ -551,6 +552,7 @@ class B:
     assert imports.extract_symbol(code, symbol) == source
 
 
+# TODO: should this check that the function is called?
 def test_get_source_from_function_import(tmp_directory, tmp_imports):
     Path('functions.py').write_text("""
 def a():
@@ -561,6 +563,18 @@ def a():
                                           Path('.').resolve()) == {
                                               'functions.a':
                                               'def a():\n    pass'
+                                          }
+
+
+def test_get_source_with_nested_access(sample_files, tmp_imports,
+                                       add_current_to_sys_path):
+    code = """
+package.sub.x()
+"""
+    assert imports.get_source_from_import('package.sub', code, 'package.sub',
+                                          Path('.').resolve()) == {
+                                              'package.sub.x':
+                                              'def x():\n    pass'
                                           }
 
 
@@ -639,6 +653,8 @@ functions.a()
 def test_missing_spec(tmp_directory, tmp_imports):
     # this will causes the spec.origin to be None
     Path('package').mkdir()
+    # FIXME: init can be missing, cover that case
+    Path('package', '__init__.py').touch()
 
     code = """
 import package
