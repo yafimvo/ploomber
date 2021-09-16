@@ -131,8 +131,8 @@ from package import sub_other
 
 """, {}
         ],
-        # FIXME: the output reference here is wrong. a, b arent used so they should
-        # be ignored
+        # FIXME: the output reference here is wrong. a, b arent used so they
+        # should be ignored
         [
             """
 # from .. import attribute1, attrbute2
@@ -868,5 +868,5 @@ def test_get_source_from_accessed_symbol_in_callable(tmp_directory,
 
     import functions
 
-    assert imports.get_source_from_accessed_symbols_in_callable(
+    assert imports._extract_accessed_objects_from_callable(
         functions.fn) == expected

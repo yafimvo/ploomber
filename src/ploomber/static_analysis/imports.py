@@ -18,52 +18,43 @@ from ploomber.io import pretty_print
 _SITE_PACKAGES = site.getsitepackages()
 
 
-# TODO: delete this
-def parent_or_child(path_to_script, origin):
+def should_track_file(path_to_file):
     """
-    Returns true if there is a parent or child relationship between the
-    two arguments
+    Determines if a path should be tracked for source code changes. Excludes
+    built-in and site-packages
+
+    Returns
+    -------
+    bool
+        True if the file should be tracked
     """
-    try:
-        Path(origin).relative_to(path_to_script)
-    except ValueError:
-        child = False
-    else:
-        child = True
-
-    if child:
-        return True
-
-    try:
-        Path(path_to_script).relative_to(origin)
-    except ValueError:
-        parent = False
-    else:
-        parent = True
-
-    return parent
-
-
-def should_track(path_to_script):
     # TODO: there might be some edge cases if running in a virtual env
     # and sys/site returns the paths to the python installation where the
     # virtual env was created from
-    if Path(path_to_script).is_relative_to(sys.prefix):
+    if Path(path_to_file).is_relative_to(sys.prefix):
         return False
 
-    if Path(path_to_script).is_relative_to(sys.base_prefix):
+    if Path(path_to_file).is_relative_to(sys.base_prefix):
         return False
 
     for path in _SITE_PACKAGES:
-        if Path(path_to_script).is_relative_to(path):
+        if Path(path_to_file).is_relative_to(path):
             return False
+
     return True
 
 
-def get_origin(dotted_path):
+def should_track_dotted_path(dotted_path):
+    """Determines if a dotted_path should be tracked
     """
-    Gets the spec origin for the given dotted path. Returns None if cannot
-    find a spec for the dotted path
+    origin, _ = get_dotted_path_origin(dotted_path)
+    return False if not origin else should_track_file(origin)
+
+
+def get_dotted_path_origin(dotted_path):
+    """
+    Returns the path to the root file of a given dotted_path and if the
+    dotted_path is a module (a .py file) or not
     """
     try:
         # FIXME: how would this work for relative imports if the .. parts
@@ -75,8 +66,8 @@ def get_origin(dotted_path):
     if spec:
         return Path(spec.origin), True
 
-    # name could be an attribute, not a module. so we try to locate
-    # the module instead
+    # name could be an attribute (e.g. a function), not a module (a file). So
+    # we try to locate the module instead
     name_parent = '.'.join(dotted_path.split('.')[:-1])
 
     try:
@@ -85,15 +76,6 @@ def get_origin(dotted_path):
         return None, None
     else:
         return Path(spec.origin), False
-
-
-def should_track_dotted_path(dotted_path):
-    origin, found_spec = get_origin(dotted_path)
-
-    if found_spec:
-        return should_track(origin)
-    else:
-        return False
 
 
 def get_source_from_import(dotted_path, source_code, name_defined):
@@ -123,10 +105,10 @@ def get_source_from_import(dotted_path, source_code, name_defined):
     # if name is a symbol, return a dict with the source, if it's a module
     # return the sources for the attribtues used in source. Note that origin
     # may be None, e.g., if there is an empty package/ (no __init__.py)
-    origin, is_module = get_origin(dotted_path)
+    origin, is_module = get_dotted_path_origin(dotted_path)
 
     # do not obtain sources for modules that arent in the project
-    if not origin or not should_track(origin):
+    if not origin or not should_track_file(origin):
         return {}
 
     # it's a module (user may access only a few attributes)
@@ -149,13 +131,6 @@ def get_source_from_import(dotted_path, source_code, name_defined):
         # TODO: maybe use the jedi library? it has a search function
         # may solve the problem with imports inside __init__.py renames
         # etc
-        # NOTE: can I use "name_defined" here instead of "symbol"
-        symbol = dotted_path.split('.')[-1]
-
-        # TODO: maybe use the jedi library? it has a search function
-        # may solve the problem with imports inside __init__.py renames
-        # etc
-        # NOTE: can I use "name_defined" here instead of "symbol"
         symbol = dotted_path.split('.')[-1]
         return _get_source_from_accessed_symbol(
             dotted_path,
@@ -178,19 +153,24 @@ def _get_source_from_accessed_symbol(dotted_path, source_code, origin, symbol):
 
 def extract_from_script(path_to_script):
     """
-    Extract the source code for all imports in a script. Keys are dotted
-    paths to the imported attributes while keys contain the source code. If
-    a module is imported, only attributes used in the script are returned.
+    Extract source code from all imported and used objects in a script. Keys
+    are dotted paths to the imported attributes while keys contain the source
+    code. Unused objects (even if imported) are ignored.
 
     Notes
     -----
     Star imports (from module import *) are ignored
     """
     source = Path(path_to_script).read_text()
-    return _extract_from_source_and_imports(source, path_to_script)
+    return _extract_imported_objects_from_source(source, path_to_script)
 
 
 def extract_from_callable(callable_):
+    """
+    Extract source code from all objects used inside a function's body. These
+    include imported objects and objects defined in the same module as the
+    callable.
+    """
     # NOTE: we can use the inspect module here since by the time we call
     # this, the function has already been imported and executed
     source = inspect.getsource(callable_)
@@ -198,10 +178,10 @@ def extract_from_callable(callable_):
     imports = Path(path_to_source).read_text()
 
     # this returns symbols used through imports
-    from_imports = _extract_from_source_and_imports(source, path_to_source,
-                                                    imports)
+    from_imports = _extract_imported_objects_from_source(
+        source, path_to_source, imports)
     # and this from symbols defined in the same file
-    local = get_source_from_accessed_symbols_in_callable(callable_)
+    local = _extract_accessed_objects_from_callable(callable_)
 
     # NOTE: what if there are duplicates?
     # import x
@@ -211,7 +191,9 @@ def extract_from_callable(callable_):
     return {**from_imports, **local}
 
 
-def get_source_from_accessed_symbols_in_callable(callable_):
+def _extract_accessed_objects_from_callable(callable_):
+    """Extract source code from all locally defined objects used by a callable
+    """
     # is there any differente between this and inspect.getmodule?
     mod_name = callable_.__module__
 
@@ -230,9 +212,23 @@ def get_source_from_accessed_symbols_in_callable(callable_):
     return {f'{mod_name}.{k}': v for k, v in defined.items() if k in accessed}
 
 
-def _extract_from_source_and_imports(source_code,
-                                     path_to_source,
-                                     imports=None):
+def _extract_imported_objects_from_source(source_code,
+                                          path_to_source,
+                                          imports=None):
+    """Extract source code from all imported objects used in a code string
+
+    Parameters
+    ----------
+    source_code : str
+        The code string used to check object access
+
+    path_to_source : str or pathlib.Path
+        Path to source_code. Only used to warn the user if source_code contains
+        star imports
+
+    imports : str, default=None
+        A code string with imports. If None, imports in source_code are used
+    """
     tree = parso.parse(imports or source_code)
 
     specs = {}
@@ -279,7 +275,8 @@ def _extract_from_source_and_imports(source_code,
 
 
 def did_access_name(code, name):
-
+    """Check if a defined name is accessed in the code string
+    """
     # delete comments otherwise the leaf.parent.get_code() will fail
     m = parso.parse(_delete_python_comments(code))
 
@@ -297,6 +294,8 @@ def did_access_name(code, name):
 
 
 def get_accessed_names(code, names):
+    """Returns a subset of accessed names in the code string
+    """
     remaining = set(names)
     accessed = []
 
