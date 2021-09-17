@@ -61,7 +61,9 @@ def get_dotted_path_origin(dotted_path):
         # FIXME: how would this work for relative imports if the .. parts
         # does not get here?
         spec = importlib.util.find_spec(dotted_path)
-    except ModuleNotFoundError:
+    # NOTE: python 3.6 raises AttributeError
+    # https://bugs.python.org/issue30436
+    except (ModuleNotFoundError, AttributeError):
         spec = None
 
     if spec:
@@ -73,7 +75,7 @@ def get_dotted_path_origin(dotted_path):
 
     try:
         spec = importlib.util.find_spec(name_parent)
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, AttributeError):
         return None, None
     else:
         return Path(spec.origin), False
