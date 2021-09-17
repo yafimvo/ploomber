@@ -2,6 +2,7 @@
 Reference material:
 https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
 """
+from copy import copy
 import sys
 import warnings
 from itertools import chain
@@ -188,7 +189,14 @@ def extract_from_callable(callable_):
     # def x():
     #     pass
     # maybe a warning?
-    return {**from_imports, **local}
+    extracted = {**from_imports, **local}
+    final = copy(extracted)
+
+    for dotted_path in extracted.keys():
+        new = extract_from_callable(_load_dotted_path(dotted_path))
+        final.update(new)
+
+    return final
 
 
 def _extract_accessed_objects_from_callable(callable_):
@@ -272,6 +280,13 @@ def _extract_imported_objects_from_source(source_code,
                       'which prevents appropriate source code tracking.')
 
     return specs
+
+
+def _load_dotted_path(dotted_path):
+    tokens = dotted_path.split('.')
+    mod, attr = '.'.join(tokens[:-1]), tokens[-1]
+    mod_obj = importlib.import_module(mod)
+    return getattr(mod_obj, attr)
 
 
 def did_access_name(code, name):

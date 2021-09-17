@@ -209,9 +209,9 @@ sub_other.a()
 def test_extract_from_script(sample_files, script, expected):
     Path('script.py').write_text(script)
 
-    # TODO: finding imports recursively
+    # TODO: add recursive test case
 
-    # TODO: try with nested imports (i.e. inside a function)
+    # TODO: try with nested imports (i.e. inside a function's body)
 
     # TODO: try accessing an attribute that's imported in __init__
     # hence the source isn't there...
@@ -691,9 +691,11 @@ def do_more():
             'utils.do_more': 'def do_more():\n    pass',
         }
     ],
-    ['call_local', {
-        'functions.call_do': 'def call_do():\n    do()',
-    }],
+    [
+        'call_local', {
+            'functions.call_nothing': 'def call_nothing():\n    pass',
+        }
+    ],
     [
         'call_local_class', {
             'functions.LocalClass': 'class LocalClass:\n    pass',
@@ -704,6 +706,12 @@ def do_more():
             'utils.ExternalClass': 'class ExternalClass:\n    pass',
         }
     ],
+    [
+        'call_nested', {
+            'utils.nested': 'def nested():\n    do()',
+            'utils.do': 'def do():\n    pass',
+        }
+    ],
 ],
                          ids=[
                              'call_do',
@@ -712,6 +720,7 @@ def do_more():
                              'call_local',
                              'call_local_class',
                              'call_external_class',
+                             'call_nested',
                          ])
 def test_extract_from_function(sample_files, tmp_imports, fn_name, expected):
     Path('functions.py').write_text("""
@@ -738,15 +747,16 @@ def call_nothing():
     pass
 
 def call_local():
-    return call_do()
-
+    return call_nothing()
 
 def call_local_class():
     obj = LocalClass()
 
-
 def call_external_class():
     obj = utils.ExternalClass()
+
+def call_nested():
+    utils.nested()
 """)
 
     Path('utils.py').write_text("""
@@ -758,6 +768,9 @@ def do():
 
 def do_more():
     pass
+
+def nested():
+    do()
 """)
 
     import functions
