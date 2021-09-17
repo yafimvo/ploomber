@@ -40,6 +40,9 @@ class ConcreteMetadata(AbstractMetadata):
     def stored_source_code(self):
         pass
 
+    def source_tree(self):
+        pass
+
     def params(self):
         pass
 
@@ -110,17 +113,19 @@ def test_update():
     prod = FakeProduct(identifier='fake-product')
     metadata = Metadata(prod)
 
-    metadata.update('new code', params={'a': 1})
+    metadata.update('new code', source_tree={'a': 2}, params={'a': 1})
 
     # check code was updated
     assert metadata.stored_source_code == 'new code'
+    assert metadata.source_tree == {'a': 2}
     assert metadata.params == {'a': 1}
 
 
-@pytest.mark.parametrize(
-    'method, kwargs',
-    [['clear', dict()], ['update', dict(source_code='', params={})],
-     ['update_locally', dict(data=dict())]])
+@pytest.mark.parametrize('method, kwargs', [
+    ['clear', dict()],
+    ['update', dict(source_code='', source_tree={}, params={})],
+    ['update_locally', dict(data=dict())],
+])
 def test_cache_flags_are_cleared_up(method, kwargs):
     prod = FakeProduct(identifier='fake-product')
     prod._outdated_data_dependencies_status = 1
@@ -198,15 +203,14 @@ def test_metadata_collection_forwards_calls_to_all_products(method):
 def test_metadata_collection_update_forwards_to_all_products():
     p1 = Mock()
     p2 = Mock()
-    arg = Mock()
-    arg2 = Mock()
+    arg, arg2, arg3 = Mock(), Mock(), Mock()
 
     m = MetadataCollection([p1, p2])
 
-    m.update(arg, arg2)
+    m.update(arg, arg2, arg3)
 
-    p1.metadata.update.assert_called_once_with(arg, arg2)
-    p2.metadata.update.assert_called_once_with(arg, arg2)
+    p1.metadata.update.assert_called_once_with(arg, arg2, arg3)
+    p2.metadata.update.assert_called_once_with(arg, arg2, arg3)
 
 
 def test_metadata_collection_update_locally_forwards_to_all_products():
@@ -361,17 +365,22 @@ def test_metadata_collection_underscore_data(d1, d2, expected, should_warn):
     assert d == expected
 
 
+def test_metadata_collection_warns_on_differing_source_tree():
+    raise NotImplementedError
+
+
 def test_file(tmp_directory):
     Path('file').touch()
     product = File('file')
 
     m = Metadata(product)
 
-    m.update('some_source_code', {'a': 1})
+    m.update('some_source_code', {'a': 2}, {'a': 1})
 
     m2 = Metadata(product)
 
     assert m2.stored_source_code == 'some_source_code'
+    assert m2.source_tree == {'a': 2}
     assert m2.timestamp
     assert m2.params == {'a': 1}
 
@@ -383,7 +392,7 @@ def test_warns_on_unserializable_params(tmp_directory):
     m = Metadata(product)
 
     with pytest.warns(UserWarning) as record:
-        m.update('some_source_code', {'a': object()})
+        m.update('some_source_code', {}, {'a': object()})
 
     m2 = Metadata(product)
 

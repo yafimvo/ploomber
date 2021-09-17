@@ -48,6 +48,13 @@ class AbstractMetadata(abc.ABC):
         pass  # pragma: no cover
 
     @property
+    @abc.abstractmethod
+    def source_tree(self):
+        """Source code for objects called in the source code
+        """
+        pass  # pragma: no cover
+
+    @property
     @abc.abstractclassmethod
     def params(self):
         """Task params
@@ -55,7 +62,7 @@ class AbstractMetadata(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def update(self, source_code, params):
+    def update(self, source_code, source_tree, params):
         """
         """
         pass  # pragma: no cover
@@ -174,6 +181,10 @@ class Metadata(AbstractMetadata):
         return self._data.get('stored_source_code')
 
     @property
+    def source_tree(self):
+        return self._data.get('source_tree')
+
+    @property
     def _data(self):
         if not self._did_fetch:
             self._get()
@@ -225,7 +236,7 @@ class Metadata(AbstractMetadata):
         self._did_fetch = True
         self._data = metadata
 
-    def update(self, source_code, params):
+    def update(self, source_code, source_tree, params):
         """
         Update metadata in the storage backend, this should be called by
         Task objects when running successfully to update metadata in the
@@ -236,6 +247,10 @@ class Metadata(AbstractMetadata):
         ----------
         source_code : str
             Task's source code
+
+        source_tree : dict
+            {dotted-path} -> {source-code} mapping for all objects called
+            by source_code
 
         params : dict
             Task's params
@@ -256,7 +271,8 @@ class Metadata(AbstractMetadata):
 
         new_data = dict(timestamp=datetime.now().timestamp(),
                         stored_source_code=source_code,
-                        params=params)
+                        params=params,
+                        source_tree=source_tree)
 
         kwargs = callback_check(self._product.prepare_metadata,
                                 available={
@@ -357,12 +373,18 @@ class MetadataCollection(AbstractMetadata):
             return stored_source_code[0]
 
     @property
+    def source_tree(self):
+        # FIXME: return None if there are conflicts
+        source_tree = [p.metadata.source_tree for p in self._products]
+        return source_tree[0]
+
+    @property
     def params(self):
         return self._products.first.params
 
-    def update(self, source_code, params):
+    def update(self, source_code, source_tree, params):
         for p in self._products:
-            p.metadata.update(source_code, params)
+            p.metadata.update(source_code, source_tree, params)
 
     def update_locally(self, data):
         for p in self._products:
@@ -443,6 +465,10 @@ class MetadataAlwaysUpToDate(AbstractMetadata):
 
     @property
     def stored_source_code(self):
+        return None
+
+    @property
+    def source_tree(self):
         return None
 
     @property
