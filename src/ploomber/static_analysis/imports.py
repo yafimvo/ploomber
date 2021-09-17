@@ -19,27 +19,32 @@ from ploomber.io import pretty_print
 _SITE_PACKAGES = site.getsitepackages()
 
 
-def should_track_file(path_to_file):
+def should_track_origin(path_to_origin):
     """
-    Determines if a path should be tracked for source code changes. Excludes
-    built-in and site-packages
+    Determines if an origin (a path in most cases) should be tracked for source
+    code changes. Excludes built-in and site-packages
 
     Returns
     -------
     bool
         True if the file should be tracked
     """
+    # this happens on Windows when calling importlib.util.find_spec(name)
+    # where name is a built-in module
+    if str(path_to_origin) == 'built-in':
+        return False
+
     # TODO: there might be some edge cases if running in a virtual env
     # and sys/site returns the paths to the python installation where the
     # virtual env was created from
-    if _path_is_relative_to(path_to_file, sys.prefix):
+    if _path_is_relative_to(path_to_origin, sys.prefix):
         return False
 
-    if _path_is_relative_to(path_to_file, sys.base_prefix):
+    if _path_is_relative_to(path_to_origin, sys.base_prefix):
         return False
 
     for path in _SITE_PACKAGES:
-        if _path_is_relative_to(path_to_file, path):
+        if _path_is_relative_to(path_to_origin, path):
             return False
 
     return True
@@ -49,7 +54,7 @@ def should_track_dotted_path(dotted_path):
     """Determines if a dotted_path should be tracked
     """
     origin, _ = get_dotted_path_origin(dotted_path)
-    return False if not origin else should_track_file(origin)
+    return False if not origin else should_track_origin(origin)
 
 
 def get_dotted_path_origin(dotted_path):
@@ -111,7 +116,7 @@ def get_source_from_import(dotted_path, source_code, name_defined):
     origin, is_module = get_dotted_path_origin(dotted_path)
 
     # do not obtain sources for modules that arent in the project
-    if not origin or not should_track_file(origin):
+    if not origin or not should_track_origin(origin):
         return {}
 
     # it's a module (user may access only a few attributes)
