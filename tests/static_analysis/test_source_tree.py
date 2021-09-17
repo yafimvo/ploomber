@@ -472,7 +472,8 @@ functions.a()
 functions.b()
 """
     # TODO: parametrize with and without comments
-    assert source_tree.extract_attribute_access(code, 'functions') == ['a', 'b']
+    assert source_tree.extract_attribute_access(code,
+                                                'functions') == ['a', 'b']
 
 
 @pytest.mark.parametrize('source, expected', [
@@ -576,10 +577,10 @@ def test_get_source_with_nested_access(sample_files, tmp_imports,
 package.sub.x()
 """
     assert source_tree.get_source_from_import('package.sub', code,
-                                          'package.sub') == {
-                                              'package.sub.x':
-                                              'def x():\n    pass'
-                                          }
+                                              'package.sub') == {
+                                                  'package.sub.x':
+                                                  'def x():\n    pass'
+                                              }
 
 
 def test_get_source_from_module_import(tmp_directory, tmp_imports):
@@ -595,9 +596,11 @@ functions.a()
 """
 
     # TODO: what if accessing attributes that do not exist e.g., functions.b()
-    assert source_tree.get_source_from_import('functions', code, 'functions') == {
-        'functions.a': 'def a():\n    pass'
-    }
+    assert source_tree.get_source_from_import('functions', code,
+                                              'functions') == {
+                                                  'functions.a':
+                                                  'def a():\n    pass'
+                                              }
 
 
 def test_missing_init_in_submodule(tmp_directory, tmp_imports):
@@ -620,10 +623,10 @@ functions.a()
 """
 
     assert source_tree.get_source_from_import('package.sub.functions.a', code,
-                                          'functions') == {
-                                              'package.sub.functions.a':
-                                              'def a():\n    pass'
-                                          }
+                                              'functions') == {
+                                                  'package.sub.functions.a':
+                                                  'def a():\n    pass'
+                                              }
 
 
 def test_missing_init_in_module(tmp_directory, tmp_imports):
@@ -644,10 +647,10 @@ functions.a()
 """
 
     assert source_tree.get_source_from_import('package.functions.a', code,
-                                          'functions') == {
-                                              'package.functions.a':
-                                              'def a():\n    pass'
-                                          }
+                                              'functions') == {
+                                                  'package.functions.a':
+                                                  'def a():\n    pass'
+                                              }
 
 
 def test_missing_spec(tmp_directory, tmp_imports):
@@ -670,8 +673,8 @@ def do_more():
     pass
 """)
     assert source_tree.get_source_from_import('utils.do_more',
-                                          'def call_do():\n    do()\n',
-                                          'do_more') == {}
+                                              'def call_do():\n    do()\n',
+                                              'do_more') == {}
 
 
 # TODO: cover the case when a function calls another function/class defined
@@ -776,7 +779,7 @@ def nested():
     import functions
 
     assert (source_tree.extract_from_callable(getattr(functions,
-                                                  fn_name)) == expected)
+                                                      fn_name)) == expected)
 
 
 @pytest.mark.parametrize('code', [
