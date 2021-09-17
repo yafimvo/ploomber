@@ -4,6 +4,7 @@ import warnings
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 import sqlite3
+import importlib
 
 import pytest
 import tqdm.auto
@@ -1090,3 +1091,45 @@ def test_up_to_date_status_when_unserializable_params(tmp_directory):
     dag = make().render()
 
     assert {t.exec_status for t in dag.values()} == {TaskStatus.Skipped}
+
+
+# TODO: create a test with notebooks
+def test_outdates_python_callable_if_source_tree_changes(
+        tmp_directory, tmp_imports):
+    Path('functions.py').write_text("""
+from pathlib import Path
+
+def another():
+    return 42
+
+def touch(product):
+    another()
+    Path(product).touch()
+""")
+
+    import functions
+
+    def make():
+        dag = DAG(executor=Serial(build_in_subprocess=False))
+        PythonCallable(functions.touch, File('file.txt'), dag, name='first')
+        return dag
+
+    make().build()
+
+    Path('functions.py').write_text("""
+from pathlib import Path
+
+def another():
+    return 1
+
+def touch(product):
+    another()
+    Path(product).touch()
+""")
+
+    dag = make().render()
+
+    functions = importlib.reload(functions)
+
+    assert {t.exec_status
+            for t in dag.values()} == {TaskStatus.WaitingExecution}

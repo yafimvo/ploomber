@@ -103,7 +103,14 @@ class CodeDiffer:
         'sql': normalize_sql
     }
 
-    def is_different(self, a, b, a_params, b_params, extension=None):
+    def is_different(self,
+                     a,
+                     b,
+                     a_source_tree,
+                     b_source_tree,
+                     a_params,
+                     b_params,
+                     extension=None):
         """Compares code and params to determine if it's changed
 
         Parameters
@@ -113,6 +120,12 @@ class CodeDiffer:
 
         b : str
             Code to compare
+
+        a_source_tree : dict
+            Source tree to compare
+
+        b_source_tree : dict
+            Source tree to compare
 
         a_params : dict
             Params passed to a
@@ -144,15 +157,19 @@ class CodeDiffer:
         a_norm = normalizer(a)
         b_norm = normalizer(b)
 
+        # FIXME: is this possible? (params to be None). I think this was only
+        # possible when we introduced saving params in metadata but not anymore
         if a_params is None or b_params is None:
             outdated_params = False
         else:
             outdated_params = (a_params != b_params)
 
-        result = outdated_params or (a_norm != b_norm)
+        result = outdated_params or (a_norm != b_norm) or (a_source_tree !=
+                                                           b_source_tree)
+
         # TODO: improve diff view, also show a params diff view. probably
         # we need to normalize them first (maybe using pprint?) then take
-        # the diff
+        # the diff. Also include differences in source_tree
         diff = self.get_diff(a_norm, b_norm, normalize=False)
 
         return result, diff

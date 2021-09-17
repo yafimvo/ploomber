@@ -22,6 +22,8 @@ def test_python_differ_ignores_docstrings():
     differ = CodeDiffer()
     res, _ = differ.is_different(a=fn_w_docsting,
                                  b=fn_w_docsting_v2,
+                                 a_source_tree={},
+                                 b_source_tree={},
                                  a_params={},
                                  b_params={},
                                  extension='py')
@@ -46,6 +48,8 @@ def x():
     differ = CodeDiffer()
     res, _ = differ.is_different(a=a,
                                  b=b,
+                                 a_source_tree={},
+                                 b_source_tree={},
                                  a_params={},
                                  b_params={},
                                  extension='py')
@@ -64,6 +68,8 @@ def test_sql_is_normalized():
     differ = CodeDiffer()
     different, _ = differ.is_different(a=a,
                                        b=b,
+                                       a_source_tree={},
+                                       b_source_tree={},
                                        a_params={},
                                        b_params={},
                                        extension='sql')
@@ -140,10 +146,28 @@ def test_different_params():
     differ = CodeDiffer()
     res, _ = differ.is_different(a='some code',
                                  b='some code',
+                                 a_source_tree={},
+                                 b_source_tree={},
                                  a_params={'a': 1},
                                  b_params={'a': 2},
                                  extension='py')
     assert res
+
+
+def test_different_source_tree():
+    differ = CodeDiffer()
+    res, _ = differ.is_different(a='some code',
+                                 b='some code',
+                                 a_source_tree={'z': 1},
+                                 b_source_tree={'z': 2},
+                                 a_params={'a': 1},
+                                 b_params={'a': 1},
+                                 extension='py')
+    assert res
+
+
+def test_normalizes_source_tree():
+    raise NotImplementedError
 
 
 def test_delete_python_comments():
