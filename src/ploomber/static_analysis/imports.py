@@ -32,14 +32,14 @@ def should_track_file(path_to_file):
     # TODO: there might be some edge cases if running in a virtual env
     # and sys/site returns the paths to the python installation where the
     # virtual env was created from
-    if Path(path_to_file).is_relative_to(sys.prefix):
+    if _path_is_relative_to(path_to_file, sys.prefix):
         return False
 
-    if Path(path_to_file).is_relative_to(sys.base_prefix):
+    if _path_is_relative_to(path_to_file, sys.base_prefix):
         return False
 
     for path in _SITE_PACKAGES:
-        if Path(path_to_file).is_relative_to(path):
+        if _path_is_relative_to(path_to_file, path):
             return False
 
     return True
@@ -404,3 +404,12 @@ def extract_symbol(code, name):
     for node in chain(m.iter_funcdefs(), m.iter_classdefs()):
         if node.name.value == name:
             return node.get_code().strip()
+
+
+def _path_is_relative_to(path, other):
+    # for backwards compatibility (Python < 3.9)
+    try:
+        Path(path).relative_to(other)
+        return True
+    except ValueError:
+        return False
