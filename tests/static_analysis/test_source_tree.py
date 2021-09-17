@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ploomber.static_analysis import imports
+from ploomber.static_analysis import source_tree
 
 # TODO: add a test with a namespace module. e.g., the same module
 # as two different locations and we must look up in both to find a symbol
@@ -218,7 +218,7 @@ def test_extract_from_script(sample_files, script, expected):
 
     # TODO: try accessing a constant like dictionary defined in a module
     # e.g. module.sub['a'], should we also look for changes there?
-    specs = imports.extract_from_script('script.py')
+    specs = source_tree.extract_from_script('script.py')
 
     assert specs == expected
 
@@ -253,7 +253,7 @@ def test_warns_if_star_import(tmp_directory, add_current_to_sys_path, code):
     Path('script.py').write_text(code)
 
     with pytest.warns(UserWarning) as record:
-        specs = imports.extract_from_script('script.py')
+        specs = source_tree.extract_from_script('script.py')
 
     assert specs == {}
     assert len(record) == 1
@@ -290,7 +290,7 @@ def test_no_warning_if_built_in_or_external_module(tmp_directory, code):
     Path('script.py').write_text(code)
 
     with pytest.warns(None) as record:
-        specs = imports.extract_from_script('script.py')
+        specs = source_tree.extract_from_script('script.py')
 
     assert specs == {}
     assert not len(record)
@@ -375,7 +375,7 @@ def test_extract_from_script_with_relative_imports(
     expected,
 ):
     Path('script.py').write_text(script)
-    specs = imports.extract_from_script('script.py')
+    specs = source_tree.extract_from_script('script.py')
     assert specs == expected
 
 
@@ -431,7 +431,7 @@ def test_extract_from_script_with_relative_imports_nested(
 ):
     os.chdir('package')
     Path('script.py').write_text(script)
-    specs = imports.extract_from_script('script.py')
+    specs = source_tree.extract_from_script('script.py')
     assert specs == expected
 
 
@@ -450,7 +450,7 @@ def do_more_stuff(x):
     return my_module['something']
 """
 
-    assert imports.extract_attribute_access(
+    assert source_tree.extract_attribute_access(
         code, 'my_module') == ['some_fn', 'another_fn']
 
 
@@ -460,7 +460,7 @@ import functions
 
 functions.a()
 """
-    assert imports.extract_attribute_access(code, 'functions') == ['a']
+    assert source_tree.extract_attribute_access(code, 'functions') == ['a']
 
 
 def test_extract_attribute_access_3():
@@ -472,7 +472,7 @@ functions.a()
 functions.b()
 """
     # TODO: parametrize with and without comments
-    assert imports.extract_attribute_access(code, 'functions') == ['a', 'b']
+    assert source_tree.extract_attribute_access(code, 'functions') == ['a', 'b']
 
 
 @pytest.mark.parametrize('source, expected', [
@@ -535,7 +535,7 @@ mod.sub.nested.attribute
                              'complete',
                          ])
 def test_extract_nested_attribute_access(source, expected):
-    assert imports.extract_attribute_access(source, 'mod.sub') == expected
+    assert source_tree.extract_attribute_access(source, 'mod.sub') == expected
 
 
 @pytest.mark.parametrize('symbol, source', [
@@ -551,7 +551,7 @@ class B:
     pass
 """
 
-    assert imports.extract_symbol(code, symbol) == source
+    assert source_tree.extract_symbol(code, symbol) == source
 
 
 # TODO: try with a[1], a.something
@@ -565,7 +565,7 @@ def a():
 a()
 """
 
-    assert imports.get_source_from_import('functions.a', code, 'a') == {
+    assert source_tree.get_source_from_import('functions.a', code, 'a') == {
         'functions.a': 'def a():\n    pass'
     }
 
@@ -575,7 +575,7 @@ def test_get_source_with_nested_access(sample_files, tmp_imports,
     code = """
 package.sub.x()
 """
-    assert imports.get_source_from_import('package.sub', code,
+    assert source_tree.get_source_from_import('package.sub', code,
                                           'package.sub') == {
                                               'package.sub.x':
                                               'def x():\n    pass'
@@ -595,7 +595,7 @@ functions.a()
 """
 
     # TODO: what if accessing attributes that do not exist e.g., functions.b()
-    assert imports.get_source_from_import('functions', code, 'functions') == {
+    assert source_tree.get_source_from_import('functions', code, 'functions') == {
         'functions.a': 'def a():\n    pass'
     }
 
@@ -619,7 +619,7 @@ from package.sub import functions
 functions.a()
 """
 
-    assert imports.get_source_from_import('package.sub.functions.a', code,
+    assert source_tree.get_source_from_import('package.sub.functions.a', code,
                                           'functions') == {
                                               'package.sub.functions.a':
                                               'def a():\n    pass'
@@ -643,7 +643,7 @@ from package.sub import functions
 functions.a()
 """
 
-    assert imports.get_source_from_import('package.functions.a', code,
+    assert source_tree.get_source_from_import('package.functions.a', code,
                                           'functions') == {
                                               'package.functions.a':
                                               'def a():\n    pass'
@@ -661,7 +661,7 @@ import package
 
 package.a()
 """
-    assert imports.get_source_from_import('package', code, 'package') == {}
+    assert source_tree.get_source_from_import('package', code, 'package') == {}
 
 
 def test_get_source_from_function_source(tmp_directory, tmp_imports):
@@ -669,7 +669,7 @@ def test_get_source_from_function_source(tmp_directory, tmp_imports):
 def do_more():
     pass
 """)
-    assert imports.get_source_from_import('utils.do_more',
+    assert source_tree.get_source_from_import('utils.do_more',
                                           'def call_do():\n    do()\n',
                                           'do_more') == {}
 
@@ -775,7 +775,7 @@ def nested():
 
     import functions
 
-    assert (imports.extract_from_callable(getattr(functions,
+    assert (source_tree.extract_from_callable(getattr(functions,
                                                   fn_name)) == expected)
 
 
@@ -801,7 +801,7 @@ def fn():
 """
 ])
 def test_did_access_name(code):
-    assert imports.did_access_name(code, 'do_more')
+    assert source_tree.did_access_name(code, 'do_more')
 
 
 def test_did_access_name_false():
@@ -810,7 +810,7 @@ def call_do_more():
     for x in range(10):
         do_more()
 """
-    assert not imports.did_access_name(code, 'do')
+    assert not source_tree.did_access_name(code, 'do')
 
 
 @pytest.mark.parametrize('code, names, expected', [
@@ -832,7 +832,7 @@ z()
     ],
 ])
 def test_accessed_names(code, names, expected):
-    assert imports.get_accessed_names(code, names) == expected
+    assert source_tree.get_accessed_names(code, names) == expected
 
 
 @pytest.mark.parametrize('code, expected', [
@@ -881,5 +881,5 @@ def test_get_source_from_accessed_symbol_in_callable(tmp_directory,
 
     import functions
 
-    assert imports._extract_accessed_objects_from_callable(
+    assert source_tree._extract_accessed_objects_from_callable(
         functions.fn) == expected

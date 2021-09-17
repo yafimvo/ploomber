@@ -6,7 +6,7 @@ from ploomber.util.util import signature_check
 from ploomber.util.dotted_path import (load_dotted_path,
                                        lazily_locate_dotted_path)
 from ploomber.static_analysis.python import PythonCallableExtractor
-from ploomber.static_analysis.imports import extract_from_callable
+from ploomber.static_analysis.source_tree import extract_from_callable
 
 
 class CallableLoader:
