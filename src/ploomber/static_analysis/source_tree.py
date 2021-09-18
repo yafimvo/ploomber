@@ -1,5 +1,5 @@
 """
-Extract the source code of objects (functions and classes) used by a 
+Extract the source code of objects (functions and classes) used by a
 task (script or function) so changes to them trigger a task re-build. Example
 if a function "some_task" used as a task calls "some_function", we look up
 the source code of "some_function" and keep track of source code changes to it
@@ -9,7 +9,7 @@ called by "some_function" are detected as well.
 
 Limitations
 -----------
-* Ignores dynamic changes to sys
+* Ignores dynamic changes to sys.path in scripts/notebooks
 * Ignores non-top-level imports (e.g., imports inside a function)
 * Ignores indirect imports (e.g., "import module.fn") but inside module.py
     there's another import like "from another import fn"
@@ -210,23 +210,23 @@ def extract_from_script(path_to_script):
     return _extract_imported_objects_from_source(source, path_to_script)
 
 
-def extract_from_callable(callable_):
+def extract_from_object(obj):
     """
-    Extract source code from all objects used inside a function's body. These
-    include imported objects and objects defined in the same module as the
-    callable.
+    Extract source code from all objects used in a object's definition (classes
+    and functions). These include imported objects and objects defined in the
+    same module as the object.
     """
     # NOTE: we can use the inspect module here since by the time we call
     # this, the function has already been imported and executed
-    source = inspect.getsource(callable_)
-    path_to_source = inspect.getsourcefile(callable_)
+    source = inspect.getsource(obj)
+    path_to_source = inspect.getsourcefile(obj)
     imports = Path(path_to_source).read_text()
 
     # this returns symbols used through imports
     from_imports = _extract_imported_objects_from_source(
         source, path_to_source, imports)
     # and this from symbols defined in the same file
-    local = _extract_accessed_objects_from_callable(callable_)
+    local = _extract_accessed_objects_from_callable(obj)
 
     # NOTE: what if there are duplicates?
     # import x
@@ -237,7 +237,7 @@ def extract_from_callable(callable_):
     final = copy(extracted)
 
     for dotted_path in extracted.keys():
-        new = extract_from_callable(_load_dotted_path(dotted_path))
+        new = extract_from_object(_load_dotted_path(dotted_path))
         final.update(new)
 
     return final

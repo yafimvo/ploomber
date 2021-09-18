@@ -739,12 +739,12 @@ def do_more():
     ],
     [
         'call_local', {
-            'functions.call_nothing': 'def call_nothing():\n    pass',
+            'objects.call_nothing': 'def call_nothing():\n    pass',
         }
     ],
     [
         'call_local_class', {
-            'functions.LocalClass': 'class LocalClass:\n    pass',
+            'objects.LocalClass': 'class LocalClass:\n    pass',
         }
     ],
     [
@@ -758,6 +758,12 @@ def do_more():
             'utils.do': 'def do():\n    pass',
         }
     ],
+    [
+        'SomeClass', {
+            'objects.LocalClass': 'class LocalClass:\n    pass',
+            'utils.do': 'def do():\n    pass'
+        }
+    ],
 ],
                          ids=[
                              'call_do',
@@ -767,11 +773,20 @@ def do_more():
                              'call_local_class',
                              'call_external_class',
                              'call_nested',
+                             'SomeClass',
                          ])
-def test_extract_from_function(sample_files, tmp_imports, fn_name, expected):
-    Path('functions.py').write_text("""
+def test_extract_from_object(sample_files, tmp_imports, fn_name, expected):
+    Path('objects.py').write_text("""
 from utils import do, do_more
 import utils
+
+class SomeClass:
+    def some_method(self):
+        do()
+    
+    @classmethod
+    def another_method(cls):
+        LocalClass()
 
 class LocalClass:
     pass
@@ -819,10 +834,10 @@ def nested():
     do()
 """)
 
-    import functions
+    import objects
 
-    assert (source_tree.extract_from_callable(getattr(functions,
-                                                      fn_name)) == expected)
+    assert (source_tree.extract_from_object(getattr(objects,
+                                                    fn_name)) == expected)
 
 
 @pytest.mark.parametrize('code', [
