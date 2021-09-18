@@ -374,9 +374,19 @@ class MetadataCollection(AbstractMetadata):
 
     @property
     def source_tree(self):
-        # FIXME: return None if there are conflicts
-        source_tree = [p.metadata.source_tree for p in self._products]
-        return source_tree[0]
+        source_tree = [
+            tuple((k, v) for k, v in p.metadata.source_tree.items())
+            for p in self._products
+        ]
+
+        if len(set(source_tree)) > 1:
+            warnings.warn('Stored source_tree for products {} '
+                          'are different, but they are part of the same '
+                          'MetaProduct, returning source_tree as None'.format(
+                              self._products))
+            return None
+        else:
+            return self._products[0].metadata.source_tree
 
     @property
     def params(self):

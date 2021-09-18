@@ -158,8 +158,8 @@ def test_different_source_tree():
     differ = CodeDiffer()
     res, _ = differ.is_different(a='some code',
                                  b='some code',
-                                 a_source_tree={'z': 1},
-                                 b_source_tree={'z': 2},
+                                 a_source_tree={'z': 'code'},
+                                 b_source_tree={'z': 'another code'},
                                  a_params={'a': 1},
                                  b_params={'a': 1},
                                  extension='py')
@@ -167,7 +167,29 @@ def test_different_source_tree():
 
 
 def test_normalizes_source_tree():
-    raise NotImplementedError
+    a_code = '''
+def x():
+    """
+    """
+    pass
+'''
+
+    b_code = '''
+def x():
+    """another
+    """
+    pass
+'''
+
+    differ = CodeDiffer()
+    res, _ = differ.is_different(a='some code',
+                                 b='some code',
+                                 a_source_tree={'mod.fn': a_code},
+                                 b_source_tree={'mod.fn': b_code},
+                                 a_params={'a': 1},
+                                 b_params={'a': 1},
+                                 extension='py')
+    assert not res
 
 
 def test_delete_python_comments():

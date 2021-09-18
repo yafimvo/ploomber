@@ -40,9 +40,6 @@ def _delete_python_comments(code):
 
 
 def normalize_python(code):
-    # TODO: we should really be comparing the tree between a, b but this
-    # works for now
-
     if code is None:
         return None
 
@@ -164,9 +161,8 @@ class CodeDiffer:
         else:
             outdated_params = (a_params != b_params)
 
-        result = outdated_params or (a_norm != b_norm) or (a_source_tree !=
-                                                           b_source_tree)
-
+        result = (outdated_params or (a_norm != b_norm)
+                  or different_source_trees(a_source_tree, b_source_tree))
         # TODO: improve diff view, also show a params diff view. probably
         # we need to normalize them first (maybe using pprint?) then take
         # the diff. Also include differences in source_tree
@@ -199,3 +195,21 @@ class CodeDiffer:
             return self.NORMALIZERS[extension]
         else:
             return normalize_null
+
+
+def different_source_trees(source_tree_a, source_tree_b):
+    keys = set(source_tree_a)
+
+    # first, compare keys
+    if keys != set(source_tree_b):
+        return True
+
+    # then compare each value, stop at the first difference
+    for key in keys:
+        source_a = normalize_python(source_tree_a[key])
+        source_b = normalize_python(source_tree_b[key])
+
+        if source_a != source_b:
+            return True
+
+    return False

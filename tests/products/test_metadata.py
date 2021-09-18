@@ -231,15 +231,18 @@ _METADATA_CASES = [
         # all the same
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         False,
     ],
@@ -247,15 +250,18 @@ _METADATA_CASES = [
         # different code
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'other code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         True,
     ],
@@ -263,15 +269,18 @@ _METADATA_CASES = [
         # slightly different timestamp (1 second)
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp(),
+            'source_tree': {}
         },
         False,
     ],
@@ -279,15 +288,18 @@ _METADATA_CASES = [
         # slightly different timestamp (1 second), inverted
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=1, second=0).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp()
+            'timestamp': datetime(2021, 1, 1, minute=0, second=59).timestamp(),
+            'source_tree': {}
         },
         False,
     ],
@@ -295,15 +307,18 @@ _METADATA_CASES = [
         # both different (code + >5 seconds  timestamp difference)
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'another code',
-            'timestamp': datetime(2021, 1, 2).timestamp()
+            'timestamp': datetime(2021, 1, 2).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1).timestamp()
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {}
         },
         True,
     ],
@@ -311,15 +326,18 @@ _METADATA_CASES = [
         # large difference in timestamp (> 5 seconds)
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, second=0).timestamp()
+            'timestamp': datetime(2021, 1, 1, second=0).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, second=6).timestamp()
+            'timestamp': datetime(2021, 1, 1, second=6).timestamp(),
+            'source_tree': {}
         },
         {
             'stored_source_code': 'code',
-            'timestamp': datetime(2021, 1, 1, second=0).timestamp()
+            'timestamp': datetime(2021, 1, 1, second=0).timestamp(),
+            'source_tree': {}
         },
         True,
     ]
@@ -329,9 +347,10 @@ _METADATA_CASES = [
 class FakeMetadata(Metadata):
     """Helper testing class to directly pass metadata values
     """
-    def __init__(self, stored_source_code, timestamp):
+    def __init__(self, stored_source_code, timestamp, source_tree):
         self._Metadata__data = dict(stored_source_code=stored_source_code,
-                                    timestamp=timestamp)
+                                    timestamp=timestamp,
+                                    source_tree=source_tree)
         self._did_fetch = True
 
 
@@ -365,8 +384,65 @@ def test_metadata_collection_underscore_data(d1, d2, expected, should_warn):
     assert d == expected
 
 
-def test_metadata_collection_warns_on_differing_source_tree():
-    raise NotImplementedError
+_SOURCE_TREE_CASES = [
+    [
+        {
+            'stored_source_code': 'code',
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {
+                'module.function': 'some source code'
+            }
+        },
+        {
+            'stored_source_code': 'code',
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {
+                'module.function': 'another source code'
+            }
+        },
+        None,
+        True,
+    ],
+    [
+        {
+            'stored_source_code': 'code',
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {
+                'module.function': 'some source code'
+            }
+        },
+        {
+            'stored_source_code': 'code',
+            'timestamp': datetime(2021, 1, 1).timestamp(),
+            'source_tree': {
+                'module.function': 'some source code'
+            }
+        },
+        {
+            'module.function': 'some source code'
+        },
+        False,
+    ],
+]
+
+
+@pytest.mark.parametrize('d1, d2, expected, should_warn',
+                         _SOURCE_TREE_CASES,
+                         ids=['different', 'same'])
+def test_metadata_collection_warns_and_returns_none_on_differing_source_tree(
+        d1, d2, expected, should_warn):
+    p1, p2 = Mock(), Mock()
+    p1.metadata = FakeMetadata(**d1)
+    p2.metadata = FakeMetadata(**d2)
+    m = MetadataCollection([p1, p2])
+
+    with pytest.warns(None) as record:
+        d = m.source_tree
+
+    if should_warn:
+        assert 'Stored source_tree for products' in str(record[0].message)
+    assert bool(record) is should_warn
+    assert d == expected
 
 
 def test_file(tmp_directory):
