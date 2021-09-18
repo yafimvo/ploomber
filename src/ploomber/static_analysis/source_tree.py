@@ -2,6 +2,7 @@
 Reference material:
 https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
 """
+import os
 from copy import copy
 import sys
 import warnings
@@ -34,9 +35,6 @@ def should_track_origin(path_to_origin):
     if str(path_to_origin) == 'built-in':
         return False
 
-    # TODO: there might be some edge cases if running in a virtual env
-    # and sys/site returns the paths to the python installation where the
-    # virtual env was created from
     if _path_is_relative_to(path_to_origin, sys.prefix):
         return False
 
@@ -46,6 +44,24 @@ def should_track_origin(path_to_origin):
     for path in _SITE_PACKAGES:
         if _path_is_relative_to(path_to_origin, path):
             return False
+
+    # when using IPython in a virtualenv (i.e., a python installation with
+    # IPython installed runs "python -m venv env", then starts IPython) will
+    # have sys.{prefix, base_prefix} point to the path in the original
+    # installation instead of the venv, however IPython will modifies sys.path
+    # and adds the venv's site-packages folder:
+    # https://github.com/ipython/ipython/blob/77e188547e5705a0e960551519a851ac45db8bfc/IPython/core/interactiveshell.py#L895
+    # we don't want to track that
+
+    # detect if on virtualenv
+    # when using python:
+    # https://docs.python.org/3/library/sys.html#sys.base_prefix
+    # when using IPython, the above method doesn't work so we use os.environ
+    in_virtualenv = (sys.prefix != sys.base_prefix
+                     or 'VIRTUAL_ENV' in os.environ)
+
+    if in_virtualenv and 'site-packages' in Path(path_to_origin).parts:
+        return False
 
     return True
 

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import importlib
 
 import pytest
 
@@ -57,6 +58,58 @@ def a():
 def b():
     pass
 """)
+
+
+@pytest.mark.parametrize('origin, expected', [
+    [importlib.util.find_spec('math').origin, False],
+    [importlib.util.find_spec('jupyter').origin, False],
+    [importlib.util.find_spec('test_pkg').origin, True],
+    ['built-in', False],
+],
+                         ids=[
+                             'built-in',
+                             'site-package',
+                             'editable-package',
+                             'windows-built-in',
+                         ])
+def test_should_track_origin(origin, expected):
+    assert source_tree.should_track_origin(origin) == expected
+
+
+@pytest.mark.parametrize('origin, expected', [
+    [
+        Path('env', 'lib', 'python', 'site-packages', 'pkg', '__init__.py'),
+        False
+    ],
+    [Path('proj', 'pkg', '__init__.py'), True],
+],
+                         ids=[
+                             'venv-site-packages',
+                             'not-site-packages',
+                         ])
+def test_should_track_origin_in_virtual_env(origin, expected, monkeypatch):
+    monkeypatch.setattr(source_tree.sys, 'prefix', 'something')
+    monkeypatch.setattr(source_tree.sys, 'base_prefix', 'another')
+    origin = str(origin)
+    assert source_tree.should_track_origin(origin) == expected
+
+
+@pytest.mark.parametrize('origin, expected', [
+    [
+        Path('env', 'lib', 'python', 'site-packages', 'pkg', '__init__.py'),
+        False
+    ],
+    [Path('proj', 'pkg', '__init__.py'), True],
+],
+                         ids=[
+                             'venv-site-packages',
+                             'not-site-packages',
+                         ])
+def test_should_track_origin_in_virtual_env_ipython(origin, expected,
+                                                    monkeypatch):
+    monkeypatch.setitem(source_tree.os.environ, 'VIRTUAL_ENV', 'path/to/env')
+    origin = str(origin)
+    assert source_tree.should_track_origin(origin) == expected
 
 
 @pytest.mark.parametrize(
