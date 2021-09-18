@@ -47,6 +47,7 @@ from ploomber.sources.abc import Source
 from ploomber.sources.nb_utils import find_cell_with_tag, find_cell_with_tags
 from ploomber.static_analysis.extractors import extractor_class_for_language
 from ploomber.static_analysis.pyflakes import check_notebook
+from ploomber.static_analysis.source_tree import extract_from_script
 from ploomber.sources import docstring
 
 
@@ -55,7 +56,6 @@ def requires_path(func):
     Checks if NotebookSource instance was initialized from a file, raises
     an error if not
     """
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
 
@@ -92,7 +92,6 @@ class NotebookSource(Source):
     The render method prepares the notebook for execution: it adds the
     parameters and it makes sure kernelspec is defined
     """
-
     @requires([
         'parso', 'pyflakes', 'jupytext', 'nbformat', 'papermill',
         'jupyter_client'
@@ -144,7 +143,8 @@ class NotebookSource(Source):
                              'initialized from a string. Either pass '
                              'a pathlib.Path object with the notebook file '
                              'location or pass the source code as string '
-                             'and include the "ext_in" parameter')
+                             'and include the "ext_in" parameter '
+                             '(e.g., ext_in="py")')
         elif self._path is not None and ext_in is not None:
             raise ValueError('"ext_in" must be None if notebook is '
                              'initialized from a pathlib.Path object')
@@ -451,6 +451,10 @@ Go to: https://ploomber.io/s/params for more information
         for path, fmt_ in iter_paired_notebooks(self._nb_obj_unrendered, fmt_,
                                                 self._path.stem):
             jupytext.write(nb_clean, fp=path, fmt=fmt_)
+
+    def extract_source_tree(self):
+        source_tree = extract_from_script(self._path)
+        return str(self), source_tree
 
     @requires_path
     def format(self, fmt):
