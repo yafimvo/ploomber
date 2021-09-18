@@ -783,7 +783,7 @@ import utils
 class SomeClass:
     def some_method(self):
         do()
-    
+
     @classmethod
     def another_method(cls):
         LocalClass()
