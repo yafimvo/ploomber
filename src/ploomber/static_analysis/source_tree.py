@@ -1,4 +1,21 @@
 """
+Extract the source code of objects (functions and classes) used by a 
+task (script or function) so changes to them trigger a task re-build. Example
+if a function "some_task" used as a task calls "some_function", we look up
+the source code of "some_function" and keep track of source code changes to it
+to trigger "some_task" re-build, this works recursively so changes to objects
+called by "some_function" are detected as well.
+
+
+Limitations
+-----------
+* Ignores dynamic changes to sys
+* Ignores non-top-level imports (e.g., imports inside a function)
+* Ignores indirect imports (e.g., "import module.fn") but inside module.py
+    there's another import like "from another import fn"
+* Ignores class inheritance e.g., if task uses SubClass and Subclass is a
+    subclass of SomeClass, changes to SomeClass won't trigger a task build
+
 Reference material:
 https://tenthousandmeters.com/blog/python-behind-the-scenes-11-how-the-python-import-system-works
 """

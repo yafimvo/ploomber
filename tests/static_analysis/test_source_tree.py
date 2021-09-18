@@ -262,13 +262,6 @@ sub_other.a()
 def test_extract_from_script(sample_files, script, expected):
     Path('script.py').write_text(script)
 
-    # TODO: add recursive test case
-
-    # TODO: try with nested imports (i.e. inside a function's body)
-
-    # TODO: try accessing an attribute that's imported in __init__
-    # hence the source isn't there...
-
     # TODO: try accessing a constant like dictionary defined in a module
     # e.g. module.sub['a'], should we also look for changes there?
     specs = source_tree.extract_from_script('script.py')
@@ -730,10 +723,7 @@ def do_more():
                                               'do_more') == {}
 
 
-# TODO: cover the case when a function calls another function/class defined
-# in the same file
 # TODO: same test cases as when extracting from script
-# FIXME: support class inheritance?
 @pytest.mark.parametrize('fn_name, expected', [
     ['call_do', {
         'utils.do': 'def do():\n    pass'
