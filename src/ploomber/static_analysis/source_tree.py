@@ -62,6 +62,9 @@ def get_dotted_path_origin(dotted_path):
     Returns the path to the root file of a given dotted_path and if the
     dotted_path is a module (a .py file) or not
     """
+    # NOTE: find_spec(name).origin returns None for some built-in modules
+    # such as 'sys', but not for others (e.g., 'math')
+
     try:
         # FIXME: how would this work for relative imports if the .. parts
         # does not get here?
@@ -72,7 +75,7 @@ def get_dotted_path_origin(dotted_path):
         spec = None
 
     if spec:
-        return Path(spec.origin), True
+        return spec.origin, True
 
     # name could be an attribute (e.g. a function), not a module (a file). So
     # we try to locate the module instead
@@ -83,7 +86,7 @@ def get_dotted_path_origin(dotted_path):
     except (ModuleNotFoundError, AttributeError):
         return None, None
     else:
-        return Path(spec.origin), False
+        return spec.origin, False
 
 
 def get_source_from_import(dotted_path, source_code, name_defined):
@@ -127,7 +130,8 @@ def get_source_from_import(dotted_path, source_code, name_defined):
 
         # TODO: only read origin once
         out = {
-            f'{dotted_path}.{attr}': extract_symbol(origin.read_text(), attr)
+            f'{dotted_path}.{attr}':
+            extract_symbol(Path(origin).read_text(), attr)
             for attr in accessed_attributes
         }
 
@@ -143,7 +147,7 @@ def get_source_from_import(dotted_path, source_code, name_defined):
         return _get_source_from_accessed_symbol(
             dotted_path,
             source_code,
-            origin.read_text(),
+            Path(origin).read_text(),
             symbol,
         )
 
