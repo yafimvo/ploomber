@@ -42,6 +42,7 @@ from ploomber.util import requires
 from ploomber.sources.abc import Source
 from ploomber.sources.nb_utils import find_cell_with_tag
 from ploomber.static_analysis.extractors import extractor_class_for_language
+from ploomber.static_analysis.source_tree import extract_from_script
 from ploomber.sources import docstring
 
 
@@ -120,7 +121,8 @@ class NotebookSource(Source):
                              'initialized from a string. Either pass '
                              'a pathlib.Path object with the notebook file '
                              'location or pass the source code as string '
-                             'and include the "ext_in" parameter')
+                             'and include the "ext_in" parameter '
+                             '(e.g., ext_in="py")')
         elif self._path is not None and ext_in is not None:
             raise ValueError('"ext_in" must be None if notebook is '
                              'initialized from a pathlib.Path object')
@@ -362,6 +364,10 @@ Add a cell at the top like this:
     def extract_product(self):
         extractor_class = extractor_class_for_language(self.language)
         return extractor_class(self._get_parameters_cell()).extract_product()
+
+    def extract_source_tree(self):
+        source_tree = extract_from_script(self._path)
+        return str(self), source_tree
 
 
 # FIXME: some of this only applies to Python notebooks (error about missing
