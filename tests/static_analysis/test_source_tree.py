@@ -724,7 +724,7 @@ def do_more():
 
 
 # TODO: same test cases as when extracting from script
-@pytest.mark.parametrize('fn_name, expected', [
+@pytest.mark.parametrize('attr_name, expected', [
     ['call_do', {
         'utils.do': 'def do():\n    pass'
     }],
@@ -775,7 +775,7 @@ def do_more():
                              'call_nested',
                              'SomeClass',
                          ])
-def test_extract_from_object(sample_files, tmp_imports, fn_name, expected):
+def test_extract_from_object(sample_files, tmp_imports, attr_name, expected):
     Path('objects.py').write_text("""
 from utils import do, do_more
 import utils
@@ -837,7 +837,54 @@ def nested():
     import objects
 
     assert (source_tree.extract_from_object(getattr(objects,
-                                                    fn_name)) == expected)
+                                                    attr_name)) == expected)
+
+
+@pytest.mark.parametrize('attr_name, expected', [
+    ['uses_constant', {}],
+    ['uses_literal', {}],
+    ['uses_lambda', {}],
+    ['uses_nested_imported_object', {}],
+])
+def test_extract_from_object_ignores_non_objects(tmp_directory, tmp_imports,
+                                                 attr_name, expected):
+    Path('objects.py').write_text("""
+from utils import CONSTANT, LITERAL, some_lambda, some_function
+
+def uses_constant():
+    CONSTANT
+
+def uses_literal():
+    LITERAL
+
+
+def uses_lambda():
+    some_lambda()
+
+
+def uses_nested_imported_object():
+    some_function()
+""")
+
+    Path('utils.py').write_text("""
+from more import some_function
+
+CONSTANT = 1
+
+LITERAL = [1, 2, 3]
+
+some_lambda = lambda: 1
+""")
+
+    Path('more.py').write_text("""
+def some_function():
+    pass
+""")
+
+    import objects
+
+    assert (source_tree.extract_from_object(getattr(objects,
+                                                    attr_name)) == expected)
 
 
 @pytest.mark.parametrize('code', [

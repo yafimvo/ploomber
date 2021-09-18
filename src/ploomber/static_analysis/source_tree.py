@@ -9,6 +9,7 @@ called by "some_function" are detected as well.
 
 Limitations
 -----------
+* Only tracks changes of functions and classes (no constants, literals)
 * Ignores dynamic changes to sys.path in scripts/notebooks
 * Ignores non-top-level imports (e.g., imports inside a function)
 * Ignores indirect imports (e.g., "import module.fn") but inside module.py
@@ -168,7 +169,7 @@ def get_source_from_import(dotted_path, source_code, name_defined):
             for attr in accessed_attributes
         }
 
-        # remove symbols that do not exist
+        # remove symbols that do not exist or are not objects
         return {k: v for k, v in out.items() if v is not None}
 
     # it's a single symbol (user imported the function/class)
@@ -185,13 +186,20 @@ def get_source_from_import(dotted_path, source_code, name_defined):
         )
 
 
-def _get_source_from_accessed_symbol(dotted_path, source_code, origin, symbol):
+def _get_source_from_accessed_symbol(dotted_path, source_code, origin_text,
+                                     symbol):
     name_accessed = did_access_name(source_code, symbol)
 
     if name_accessed:
         # TODO: only read once
-        source_code_extracted = extract_symbol(origin, symbol)
-        return {dotted_path: source_code_extracted}
+        source_code_extracted = extract_symbol(origin_text, symbol)
+
+        # source_code_extracted will be None if symbol isn't a function
+        # or a class
+        return ({} if not source_code_extracted else {
+            dotted_path: source_code_extracted
+        })
+
     else:
         return {}
 
@@ -218,7 +226,13 @@ def extract_from_object(obj):
     """
     # NOTE: we can use the inspect module here since by the time we call
     # this, the function has already been imported and executed
-    source = inspect.getsource(obj)
+
+    try:
+        source = inspect.getsource(obj)
+    # this happens if trying to extract from a constant (e.g., CONSTANT = 1)
+    except TypeError:
+        return None
+
     path_to_source = inspect.getsourcefile(obj)
     imports = Path(path_to_source).read_text()
 
@@ -236,6 +250,7 @@ def extract_from_object(obj):
     extracted = {**from_imports, **local}
     final = copy(extracted)
 
+    # search recursively for objects used indirectly
     for dotted_path in extracted.keys():
         new = extract_from_object(_load_dotted_path(dotted_path))
         final.update(new)
@@ -443,9 +458,9 @@ def extract_symbol(code, name):
     name : str
         Symbol name
     """
-    m = parso.parse(code)
+    tree = parso.parse(code)
 
-    for node in chain(m.iter_funcdefs(), m.iter_classdefs()):
+    for node in chain(tree.iter_funcdefs(), tree.iter_classdefs()):
         if node.name.value == name:
             return node.get_code().strip()
 
