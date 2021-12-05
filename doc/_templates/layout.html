@@ -23,8 +23,37 @@
         max-width: 100%;
         height: auto;
     }
+    
+    .menu-btn {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+    }
+    .menu-btn_burger {
+        width: 30px;
+        height: 4px;
+        margin: 3px 0;
+        background: #99fbfb;
+        border-radius: 4px;
+    }
+
 </style>
 
+<script>
+    window.onclick = function (e) {
+        const third_column = document.getElementById('third-column');
+        const first_column = document.getElementById('first-column');
+        const top_bar = document.getElementById('top-bar');
+        third_column.classList.remove('show');
+        first_column.classList.remove('show');
+        top_bar.classList.remove('show');
+    }
+</script>
 
 <!-- Optional JavaScript -->
 <!-- jQuery first, then Popper.js, then Bootstrap JS -->
@@ -79,7 +108,7 @@ titles_only=false) %}
                         us on Slack.</a></p>
             </div>
         </div>
-        <div class="col-md-9 col-xl-8">
+        <div class="col-md-7 col-xl-8">
             <div class="document">
                 {%- block document %}
                 <div class="documentwrapper">
@@ -98,7 +127,7 @@ titles_only=false) %}
                 <div class="clearer"></div>
             </div>
         </div>
-        <div class="d-none d-xl-block col-xl-2 third-column">
+        <div class="col-md-2 col-xl-2 third-column collapse" id="third-column">
             {{ sidebar2() }}
         </div>
     </div>
