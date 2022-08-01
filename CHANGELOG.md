@@ -5,6 +5,7 @@
 ## 0.20dev
 
 * Add custom papermill engine to enable debugging: `ploomber build --debug` ([#823](https://github.com/ploomber/ploomber/issues/823))
+* Added start_method that allows to run child processes using a few different methods: 'fork', 'spawn' or 'forkserver' ([#882](https://github.com/ploomber/ploomber/issues/882))
 
 ## 0.19.9 (2022-07-26)
 
