@@ -46,7 +46,8 @@ class TaskBuildWrapper:
                 output = self.task._build(**kwargs)
                 return output
             except Exception as e:
-                return Message(task=self.task, message=_format.exception(e), obj=e)
+                return Message(task=self.task,
+                               message=_format.exception(e), obj=e)
 
 
 def _log(msg, logger, print_progress):
@@ -251,7 +252,7 @@ class Parallel(Executor):
                 else:
                     if task is not None:
                         future = pool.submit(TaskBuildWrapper(task),
-                                            lock,
+                                             lock,
                                              **task_kwargs)
                         # the callback function uses the future mapping
                         # so add it before registering the callback, otherwise
