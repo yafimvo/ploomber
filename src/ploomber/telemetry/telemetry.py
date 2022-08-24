@@ -51,7 +51,7 @@ DEFAULT_HOME_DIR = '~/.ploomber'
 DEFAULT_USER_CONF = 'config.yaml'
 DEFAULT_PLOOMBER_CONF = 'uid.yaml'
 CONF_DIR = "stats"
-posthog.project_api_key = 'phc_P9SpSeypyPwxrMdFn2edOOEooQioF2axppyEeDwtMSP'
+posthog.project_api_key = 'DSADSDSA'#'phc_P9SpSeypyPwxrMdFn2edOOEooQioF2axppyEeDwtMSP'
 PLOOMBER_HOME_DIR = os.getenv("PLOOMBER_HOME_DIR")
 # posthog client logs errors which are confusing for users
 # https://github.com/PostHog/posthog-python/blob/fd92502d990499a61804034e3feb7e17f64a14a1/posthog/consumer.py#L81

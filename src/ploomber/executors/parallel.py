@@ -14,6 +14,7 @@ from ploomber.executors.abc import Executor
 from ploomber.exceptions import DAGBuildError
 from ploomber.messagecollector import (BuildExceptionsCollector, Message)
 from ploomber.executors import _format
+import multiprocessing
 from multiprocessing import get_context, get_start_method
 from ploomber.io import pretty_print
 
@@ -39,12 +40,13 @@ class TaskBuildWrapper:
     def __init__(self, task):
         self.task = task
 
-    def __call__(self, *args, **kwargs):
-        try:
-            output = self.task._build(**kwargs)
-            return output
-        except Exception as e:
-            return Message(task=self.task, message=_format.exception(e), obj=e)
+    def __call__(self, lock, *args, **kwargs):
+        with lock:
+            try:
+                output = self.task._build(**kwargs)
+                return output
+            except Exception as e:
+                return Message(task=self.task, message=_format.exception(e), obj=e)
 
 
 def _log(msg, logger, print_progress):
@@ -237,7 +239,8 @@ class Parallel(Executor):
         task_kwargs = {'catch_exceptions': True}
 
         context = get_context(self.start_method)
-
+        m = multiprocessing.Manager()
+        lock = m.Lock()
         with ProcessPoolExecutor(max_workers=self.processes,
                                  mp_context=context) as pool:
             while True:
@@ -248,6 +251,7 @@ class Parallel(Executor):
                 else:
                     if task is not None:
                         future = pool.submit(TaskBuildWrapper(task),
+                                            lock,
                                              **task_kwargs)
                         # the callback function uses the future mapping
                         # so add it before registering the callback, otherwise
