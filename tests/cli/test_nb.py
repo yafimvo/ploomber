@@ -178,7 +178,7 @@ def test_inject_notebooks_with_priority_and_skip_functions(monkeypatch,
                                                            tmp_pi_nbs,
                                                            capsys,
                                                            ):
-    Path('setup.cfg').write_text(f"""
+    Path('setup.cfg').write_text("""
 [ploomber]
 entry-point=pipeline_with_functions.yaml
 inject-priority = *-inject-this
@@ -216,7 +216,7 @@ def test_inject_notebooks_with_and_skip_functions(monkeypatch,
                                                   tmp_pi_nbs,
                                                   capsys,
                                                   ):
-    Path('setup.cfg').write_text(f"""
+    Path('setup.cfg').write_text("""
 [ploomber]
 entry-point=pipeline_with_functions.yaml
 """)
